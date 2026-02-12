@@ -6,8 +6,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any
 
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 from backend.config import settings
 from backend.models import PosterRequest
@@ -17,8 +16,8 @@ logger = logging.getLogger(__name__)
 class ImageGeneratorService:
     def __init__(self):
         # Initialize Google GenAI client
-        self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
-        self.model = settings.GEMINI_MODEL
+        genai.configure(api_key=settings.GOOGLE_API_KEY)
+        self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
 
         # Ensure output directory exists
         Path(settings.STATIC_DIR).mkdir(parents=True, exist_ok=True)
@@ -66,10 +65,9 @@ class ImageGeneratorService:
             logger.info(f"Generated prompt: {prompt}")
 
             # Call Gemini API
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=[prompt],
-                config=types.GenerateContentConfig(
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
                     temperature=0.7,
                     top_p=0.9,
                     max_output_tokens=8192,
