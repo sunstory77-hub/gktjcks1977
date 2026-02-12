@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>홍보포스터 자동제작</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>홍보포스터 자동제작</h1>
+            <p class="subtitle">AI로 몇 초 만에 멋진 포스터를 만드세요</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Input Form Section -->
+            <section class="form-section">
+                <h2>포스터 커스터마이징</h2>
+                <form id="posterForm">
+                    <!-- Title (Required) -->
+                    <div class="form-group">
+                        <label for="title">제목 <span class="required">*</span></label>
+                        <input
+                            type="text"
+                            id="title"
+                            name="title"
+                            required
+                            maxlength="100"
+                            placeholder="포스터 제목을 입력하세요"
+                        >
+                        <span class="char-count" id="titleCount">0/100</span>
+                    </div>
+
+                    <!-- Description (Optional) -->
+                    <div class="form-group">
+                        <label for="description">설명/태그라인</label>
+                        <textarea
+                            id="description"
+                            name="description"
+                            maxlength="500"
+                            rows="3"
+                            placeholder="설명이나 태그라인을 추가하세요 (선택사항)"
+                        ></textarea>
+                        <span class="char-count" id="descriptionCount">0/500</span>
+                    </div>
+
+                    <!-- Theme (Optional) -->
+                    <div class="form-group">
+                        <label for="theme">테마</label>
+                        <select id="theme" name="theme">
+                            <option value="">테마 선택 (선택사항)</option>
+                            <option value="professional">프로페셔널</option>
+                            <option value="casual">캐주얼</option>
+                            <option value="vibrant">활기찬</option>
+                            <option value="elegant">우아한</option>
+                            <option value="modern">모던</option>
+                            <option value="retro">레트로</option>
+                        </select>
+                    </div>
+
+                    <!-- Style (Optional) -->
+                    <div class="form-group">
+                        <label for="style">시각 스타일</label>
+                        <select id="style" name="style">
+                            <option value="">스타일 선택 (선택사항)</option>
+                            <option value="minimalist">미니멀</option>
+                            <option value="bold">대담한</option>
+                            <option value="elegant">우아한</option>
+                            <option value="colorful">컬러풀</option>
+                            <option value="monochrome">단색</option>
+                            <option value="gradient">그라데이션</option>
+                        </select>
+                    </div>
+
+                    <!-- Additional Instructions (Optional) -->
+                    <div class="form-group">
+                        <label for="additionalInstructions">추가 지시사항</label>
+                        <textarea
+                            id="additionalInstructions"
+                            name="additional_instructions"
+                            maxlength="300"
+                            rows="2"
+                            placeholder="특별한 요구사항이 있나요? (선택사항)"
+                        ></textarea>
+                        <span class="char-count" id="instructionsCount">0/300</span>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary" id="generateBtn">
+                        포스터 생성
+                    </button>
+                </form>
+            </section>
+
+            <!-- Result Section -->
+            <section class="result-section" id="resultSection" style="display: none;">
+                <!-- Loading Indicator -->
+                <div class="loading" id="loadingIndicator" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>포스터를 생성하고 있습니다...</p>
+                    <p class="loading-subtext">5-15초 정도 소요될 수 있습니다</p>
+                </div>
+
+                <!-- Success Result -->
+                <div class="result-success" id="resultSuccess" style="display: none;">
+                    <h2>포스터가 완성되었습니다!</h2>
+
+                    <div class="poster-preview">
+                        <img id="posterImage" src="" alt="생성된 포스터">
+                    </div>
+
+                    <div class="result-actions">
+                        <button class="btn btn-primary" id="downloadBtn">
+                            포스터 다운로드
+                        </button>
+                        <button class="btn btn-secondary" id="generateAnotherBtn">
+                            새로 만들기
+                        </button>
+                    </div>
+
+                    <div class="result-info">
+                        <p><strong>생성 시간:</strong> <span id="generationTime"></span>초</p>
+                        <details>
+                            <summary>사용된 프롬프트 보기</summary>
+                            <pre id="promptUsed"></pre>
+                        </details>
+                    </div>
+                </div>
+
+                <!-- Error Result -->
+                <div class="result-error" id="resultError" style="display: none;">
+                    <h2>앗! 문제가 발생했습니다</h2>
+                    <p class="error-message" id="errorMessage"></p>
+                    <button class="btn btn-secondary" id="tryAgainBtn">
+                        다시 시도
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>NanoBanana (Google Gemini) 제공 | <a href="https://ai.google.dev/" target="_blank">더 알아보기</a></p>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
