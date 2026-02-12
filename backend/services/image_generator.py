@@ -1,12 +1,12 @@
 import os
 import time
 import uuid
-import base64
 import logging
+import httpx
 from pathlib import Path
 from typing import Dict, Any
 
-import google.generativeai as genai
+from openai import OpenAI
 
 from backend.config import settings
 from backend.models import PosterRequest
@@ -15,9 +15,8 @@ logger = logging.getLogger(__name__)
 
 class ImageGeneratorService:
     def __init__(self):
-        # Initialize Google GenAI client
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
-        self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        # Initialize OpenAI client
+        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
         # Ensure output directory exists
         Path(settings.STATIC_DIR).mkdir(parents=True, exist_ok=True)
@@ -45,8 +44,7 @@ class ImageGeneratorService:
             "- High quality, eye-catching design",
             "- Clear, readable text that is prominently displayed",
             "- Professional composition and color scheme",
-            "- Suitable for both digital and print use",
-            f"- Image dimensions: {settings.IMAGE_WIDTH}x{settings.IMAGE_HEIGHT}"
+            "- Suitable for both digital and print use"
         ])
 
         if request.additional_instructions:
@@ -55,7 +53,7 @@ class ImageGeneratorService:
         return "\n".join(prompt_parts)
 
     async def generate_poster(self, request: PosterRequest) -> Dict[str, Any]:
-        """Generate a poster image using NanoBanana/Gemini API"""
+        """Generate a poster image using OpenAI DALL-E API"""
 
         start_time = time.time()
 
@@ -64,25 +62,21 @@ class ImageGeneratorService:
             prompt = self._build_prompt(request)
             logger.info(f"Generated prompt: {prompt}")
 
-            # Call Gemini API
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.7,
-                    top_p=0.9,
-                    max_output_tokens=8192,
-                )
+            # Call DALL-E API
+            response = self.client.images.generate(
+                model="dall-e-3",  # or "dall-e-2" for faster/cheaper generation
+                prompt=prompt,
+                size="1024x1024",  # Options: "1024x1024", "1792x1024", "1024x1792"
+                quality="standard",  # Options: "standard", "hd"
+                n=1,
             )
 
-            # Extract image from response
-            image_data = self._extract_image_from_response(response)
+            # Get the image URL
+            image_url = response.data[0].url
+            logger.info(f"Generated image URL: {image_url}")
 
-            # Save the image
-            filename = f"{uuid.uuid4()}.png"
-            filepath = os.path.join(settings.STATIC_DIR, filename)
-
-            with open(filepath, 'wb') as f:
-                f.write(image_data)
+            # Download and save the image
+            filename = await self._download_image(image_url)
 
             generation_time = time.time() - start_time
 
@@ -97,31 +91,27 @@ class ImageGeneratorService:
             logger.error(f"Error generating image: {str(e)}")
             raise ValueError(f"Image generation failed: {str(e)}")
 
-    def _extract_image_from_response(self, response) -> bytes:
-        """Extract image bytes from Gemini API response"""
-
+    async def _download_image(self, url: str) -> str:
+        """Download image from URL and save locally"""
         try:
-            # Check if response has parts with image data
-            if hasattr(response, 'candidates') and response.candidates:
-                candidate = response.candidates[0]
-                if hasattr(candidate, 'content') and candidate.content.parts:
-                    for part in candidate.content.parts:
-                        # Check for inline_data (image)
-                        if hasattr(part, 'inline_data'):
-                            return part.inline_data.data
-                        # Check for text that might contain base64
-                        if hasattr(part, 'text') and part.text:
-                            # Try to decode as base64
-                            try:
-                                return base64.b64decode(part.text)
-                            except:
-                                pass
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url)
+                response.raise_for_status()
 
-            raise ValueError("No image data found in response")
+                # Generate unique filename
+                filename = f"{uuid.uuid4()}.png"
+                filepath = os.path.join(settings.STATIC_DIR, filename)
+
+                # Save the image
+                with open(filepath, 'wb') as f:
+                    f.write(response.content)
+
+                logger.info(f"Saved image to: {filepath}")
+                return filename
 
         except Exception as e:
-            logger.error(f"Error extracting image: {str(e)}")
-            raise ValueError(f"Failed to extract image from response: {str(e)}")
+            logger.error(f"Error downloading image: {str(e)}")
+            raise ValueError(f"Failed to download image: {str(e)}")
 
     def cleanup_old_images(self):
         """Remove old generated images to save space"""

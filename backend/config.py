@@ -4,8 +4,7 @@ import os
 
 class Settings(BaseSettings):
     # API Configuration
-    GOOGLE_API_KEY: str
-    GEMINI_MODEL: str = "gemini-2.5-flash-image"
+    OPENAI_API_KEY: str
 
     # Server Configuration
     HOST: str = "0.0.0.0"
