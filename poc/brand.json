@@ -1,0 +1,11 @@
+{
+  "name": "긍정하쌤 기본",
+  "colors": {
+    "primary": "#D95F00",
+    "accent": "#FFD23F",
+    "dark": "#1B1F3B",
+    "light": "#FFF8EC",
+    "muted": "#6B7090"
+  },
+  "font": "Pretendard"
+}
