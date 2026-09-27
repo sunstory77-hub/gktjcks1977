@@ -1,0 +1,79 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { generateCopy, offlineCopy, applyCopy, validateCopy, copyToMarkdown, COPY_SCHEMA } from '../src/ai.js';
+
+const brief = JSON.parse(fs.readFileSync(new URL('../brief.sample.json', import.meta.url)));
+
+const goodCopy = {
+  variants: [
+    { angle: '시간 절약', tag: '10월 특강', title: '퇴근이 빨라지는\nAI 업무 비법', subtitle: 'ChatGPT·Claude 실전반', promise: '반복 업무를 AI에게 맡기세요', cta: '지금 신청하기' },
+    { angle: '불안 해소', tag: '입문자 환영', title: 'AI 처음이어도\n괜찮아요', subtitle: '하루 완성 실전반', promise: '기초부터 차근차근 알려드려요', cta: '자리 확인하기' },
+    { angle: '성과', tag: '원데이 클래스', title: '보고서 한 시간\n→ 10분', subtitle: '업무 자동화 실전', promise: '결과물로 증명하는 AI 활용', cta: '신청하러 가기' },
+  ],
+  painPoints: ['반복 문서 작업이 버겁다', 'AI 결과물이 애매하다', '뭘 배워야 할지 모른다'],
+  caption: '캡션',
+  hashtags: ['AI활용', '업무자동화'],
+};
+
+// SDK 클라이언트 흉내: 요청을 기록하고 준비된 응답을 돌려준다.
+function mockClient(response) {
+  const calls = [];
+  return {
+    calls,
+    beta: { messages: { create: async (params) => (calls.push(params), response) } },
+  };
+}
+const textResponse = (obj, extra = {}) => ({
+  model: 'claude-opus-5',
+  stop_reason: 'end_turn',
+  content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: JSON.stringify(obj) }],
+  ...extra,
+});
+
+test('generateCopy: 구조화 출력·폴백·적응형 사고로 요청하고 결과를 검증해 돌려준다', async () => {
+  const client = mockClient(textResponse(goodCopy));
+  const copy = await generateCopy(brief, { client, model: 'claude-opus-5' });
+  assert.equal(copy.variants.length, 3);
+  assert.equal(copy.source, 'ai:claude-opus-5');
+  const req = client.calls[0];
+  assert.equal(req.model, 'claude-opus-5');
+  assert.deepEqual(req.betas, ['server-side-fallback-2026-07-01']);
+  assert.equal(req.fallbacks, 'default');
+  assert.deepEqual(req.thinking, { type: 'adaptive' });
+  assert.deepEqual(req.output_config.format, { type: 'json_schema', schema: COPY_SCHEMA });
+  assert.doesNotMatch(req.messages[0].content, /_note|handle/);
+});
+
+test('generateCopy: 거절(refusal)·잘림·JSON 오류·글자 수 초과는 에러', async () => {
+  await assert.rejects(generateCopy(brief, { client: mockClient(textResponse(goodCopy, { stop_reason: 'refusal', stop_details: { category: 'cyber' } })) }), /거절.*cyber/);
+  await assert.rejects(generateCopy(brief, { client: mockClient(textResponse(goodCopy, { stop_reason: 'max_tokens' })) }), /max_tokens/);
+  await assert.rejects(generateCopy(brief, { client: mockClient({ model: 'x', stop_reason: 'end_turn', content: [{ type: 'text', text: '{' }] }) }), /JSON/);
+  const long = structuredClone(goodCopy);
+  long.variants[0].title = '아주아주아주아주아주 긴 제목입니다';
+  await assert.rejects(generateCopy(brief, { client: mockClient(textResponse(long)) }), /title 한 줄/);
+});
+
+test('validateCopy: 안 개수·고민 개수 검사', () => {
+  assert.deepEqual(validateCopy(goodCopy), []);
+  assert.ok(validateCopy({ ...goodCopy, variants: goodCopy.variants.slice(0, 2) }).some((e) => /variants/.test(e)));
+  assert.ok(validateCopy({ ...goodCopy, painPoints: ['하나'] }).some((e) => /painPoints/.test(e)));
+});
+
+test('applyCopy: 카피만 바꾸고 사실 정보(일시·장소·가격·커리큘럼·혜택)는 보존', () => {
+  const b = applyCopy(brief, goodCopy, 1);
+  assert.equal(b.title, goodCopy.variants[1].title);
+  assert.deepEqual(b.painPoints, goodCopy.painPoints);
+  for (const k of ['date', 'place', 'price', 'curriculum', 'benefits', 'instructor']) assert.deepEqual(b[k], brief[k]);
+  assert.throws(() => applyCopy(brief, goodCopy, 5), /4안이 없습니다|6안이 없습니다/);
+});
+
+test('offlineCopy: API 없이 브리프 문구로 1안 + 캡션(사실 정보 포함)', () => {
+  const c = offlineCopy(brief);
+  assert.equal(c.source, 'offline');
+  assert.equal(c.variants.length, 1);
+  assert.equal(applyCopy(brief, c).title, brief.title);
+  assert.match(c.caption, new RegExp(brief.date.replace(/[()]/g, '\\$&')));
+  assert.ok(c.hashtags.every((t) => !/[\s#@]/.test(t)));
+  assert.match(copyToMarkdown(c, brief), /## 1안 · 브리프 원문/);
+});

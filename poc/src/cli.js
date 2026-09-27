@@ -1,28 +1,78 @@
-// 사용법: node src/cli.js [cards|reel|all] [브리프.json] [브랜드.json]
+// 사용법: node src/cli.js [all|cards|reel|copy] [옵션]
+//   --brief <파일>      강의 브리프 JSON (기본 brief.sample.json)
+//   --brand <파일>      브랜드킷 JSON (기본 brand.json)
+//   --template <이름>   bold | clean | pop | all (기본 bold)
+//   --variant <번호>    적용할 카피 안 번호 1~3 (기본 1)
+//   --no-ai             Claude 호출 없이 브리프 문구 그대로 사용
+//   --bgm <파일>        릴스 배경음악(mp3/wav/m4a)
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { buildSlides } from './content.js';
 import { renderCards } from './cards.js';
 import { renderReel } from './reel.js';
+import { TEMPLATE_NAMES } from './templates.js';
+import { generateCopy, offlineCopy, applyCopy, copyToMarkdown } from './ai.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const [mode = 'all', briefPath = 'brief.sample.json', brandPath = 'brand.json'] = process.argv.slice(2);
+const { values: opt, positionals } = parseArgs({
+  allowPositionals: true,
+  options: {
+    brief: { type: 'string', default: 'brief.sample.json' },
+    brand: { type: 'string', default: 'brand.json' },
+    template: { type: 'string', default: 'bold' },
+    variant: { type: 'string', default: '1' },
+    'no-ai': { type: 'boolean', default: false },
+    bgm: { type: 'string' },
+  },
+});
+const mode = positionals[0] ?? 'all';
+if (!['all', 'cards', 'reel', 'copy'].includes(mode)) throw new Error(`알 수 없는 명령: ${mode}`);
+const templates = opt.template === 'all' ? TEMPLATE_NAMES : [opt.template];
+for (const t of templates) if (!TEMPLATE_NAMES.includes(t)) throw new Error(`알 수 없는 템플릿: ${t}`);
+
 const readJson = (p) => JSON.parse(fs.readFileSync(path.resolve(ROOT, p), 'utf8'));
-
-const brief = readJson(briefPath);
-const brand = readJson(brandPath);
-const slides = buildSlides(brief);
+const brief = readJson(opt.brief);
+const brand = readJson(opt.brand);
 const outDir = path.join(ROOT, 'out');
+fs.mkdirSync(outDir, { recursive: true });
 
-if (mode === 'cards' || mode === 'all') {
-  const t = Date.now();
-  const files = await renderCards(slides, brand, brief.handle ?? '', path.join(outDir, 'cards'));
-  console.log(`카드뉴스 ${files.length}장 생성 (${Date.now() - t}ms)`);
-  files.forEach((f) => console.log('  ' + path.relative(ROOT, f)));
+// 1) 카피
+let copy;
+if (opt['no-ai']) {
+  copy = offlineCopy(brief);
+} else {
+  try {
+    const t = Date.now();
+    copy = await generateCopy(brief);
+    console.log(`AI 카피 ${copy.variants.length}안 생성 (${((Date.now() - t) / 1000).toFixed(1)}s, ${copy.source})`);
+  } catch (err) {
+    const why = /authentication|api.?key/i.test(err.message) ? 'Claude API 인증 정보 없음 (ANTHROPIC_API_KEY 설정 필요)' : err.message;
+    console.warn(`⚠ AI 카피 생성 실패 → 브리프 문구로 진행합니다: ${why}`);
+    copy = offlineCopy(brief);
+  }
 }
-if (mode === 'reel' || mode === 'all') {
-  const t = Date.now();
-  const file = await renderReel(slides, brand, brief.handle ?? '', path.join(outDir, 'reel.mp4'));
-  console.log(`릴스 생성 (${((Date.now() - t) / 1000).toFixed(1)}s)\n  ${path.relative(ROOT, file)}`);
+fs.writeFileSync(path.join(outDir, 'copy.md'), copyToMarkdown(copy, brief));
+console.log('카피: out/copy.md');
+if (mode === 'copy') process.exit(0);
+
+const variant = Math.min(Math.max(Number(opt.variant) || 1, 1), copy.variants.length) - 1;
+const slides = buildSlides(applyCopy(brief, copy, variant));
+const handle = brief.handle ?? '';
+
+// 2) 템플릿별 렌더
+for (const template of templates) {
+  const dir = path.join(outDir, template);
+  if (mode === 'cards' || mode === 'all') {
+    const t = Date.now();
+    const files = await renderCards(slides, brand, handle, path.join(dir, 'cards'), template);
+    console.log(`[${template}] 카드뉴스 ${files.length}장 (${Date.now() - t}ms) → ${path.relative(ROOT, path.join(dir, 'cards'))}/`);
+  }
+  if (mode === 'reel' || mode === 'all') {
+    const t = Date.now();
+    const bgm = opt.bgm ? path.resolve(process.cwd(), opt.bgm) : undefined;
+    const file = await renderReel(slides, brand, handle, path.join(dir, 'reel.mp4'), { template, bgm });
+    console.log(`[${template}] 릴스 (${((Date.now() - t) / 1000).toFixed(1)}s) → ${path.relative(ROOT, file)}`);
+  }
 }

@@ -3,15 +3,18 @@
   "version": "1.0.0",
   "description": "홍보콘텐츠 제작툴 PoC",
   "scripts": {
+    "all": "node src/cli.js all",
     "cards": "node src/cli.js cards",
     "reel": "node src/cli.js reel",
-    "all": "node src/cli.js all",
+    "copy": "node src/cli.js copy",
+    "all:templates": "node src/cli.js all --template all",
     "test": "node --test test/*.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@resvg/resvg-js": "^2.6.2",
     "ffmpeg-static": "^5.3.0",
     "ffprobe-static": "^3.1.0",
