@@ -14,7 +14,8 @@
 | 1주차 | 카드뉴스(Satori)·릴스(HyperFrames) 렌더링 검증 | 완료 |
 | 2주차 | Claude 카피 생성, 템플릿 3종, 릴스 서브 컴포지션 분리, 배경음악 | 완료 |
 | 3주차 | 웹 화면: 입력 폼, 카피 선택, 카드뉴스 미리보기, 릴스 렌더, ZIP 다운로드 | 완료 |
-| 4주차 | 실사용 테스트 (실제 강의 3건), AI 배경 이미지 칸 | 예정 |
+| 4주차 | 표지 사진 칸 (카드 1장 + 릴스 첫 장면, 명도 대비 보장) | 완료 |
+| 4주차 | 실사용 테스트 (실제 강의 3건), AI 이미지 공급자 연동 | 강의 정보·공급자 결정 대기 |
 
 ## 웹 화면 (3주차)
 
@@ -47,6 +48,33 @@ npm run serve          # http://127.0.0.1:5173 (PORT, HOST 환경변수로 변�
 
 화면 샘플: `samples/web_ui_desktop.png`, `samples/web_ui_mobile.png`
 
+## 표지 사진 (4주차)
+
+강사 사진이나 강의 현장 사진을 넣으면 **카드뉴스 1장 표지**와 **릴스 첫 장면**의 배경이 됩니다.
+- 웹: `표지 사진` 칸에 올리기
+- 명령줄: `node src/cli.js all --image 사진.jpg`
+
+**사진 처리**
+- JPG·PNG만 받고, 크기는 10MB까지입니다.
+- 올린 사진은 ffmpeg로 JPEG로 다시 인코딩합니다. 이 과정에서 크기를 맞추고, 촬영 위치 같은 메타데이터를 지우고, 이미지가 아닌 파일을 걸러 냅니다.
+
+**글자가 항상 읽히도록**
+- 사진 위에 브랜드 남색 덮개를 위쪽은 옅게, 아래쪽은 짙게 그라데이션으로 깝니다. 글자는 덮개가 72% 이상 짙은 아래쪽에 둡니다.
+- 새하얀 사진(최악의 경우)에서도 명도 대비가 유지됩니다.
+  - 본문: 6.05:1
+  - 노란 강조색: 4.42:1
+  - 단위 테스트와 `hyperframes check`(실제 픽셀 측정, 41/41)로 확인했습니다.
+
+**릴스 효과:** 표지 장면 3초 동안 사진이 1.00배에서 1.08배로 천천히 확대됩니다(켄 번스 효과).
+
+**주의:** 인물 사진은 본인 동의를 받은 것만 사용하세요.
+
+**AI 이미지 생성과의 관계:** AI 생성 이미지도 같은 칸(`coverImage`)으로 들어갑니다. 공급자를 정하면 `images.js` 앞단에 생성 단계만 추가하면 됩니다.
+
+샘플
+- `samples/cover_photo_cards.png`: 일반 사진·새하얀 사진 × bold·clean
+- `samples/cover_photo_reel_frames.png`
+
 ## 결과 (2주차 기준)
 
 | 항목 | 결과 |
@@ -58,7 +86,7 @@ npm run serve          # http://127.0.0.1:5173 (PORT, HOST 환경변수로 변�
 | AI 카피 | Claude가 3안·고민 포인트·인스타 캡션·해시태그 생성, 글자 수 한도 검증 |
 
 **검증**
-- `npm test` 23건 모두 통과 (웹 API 9건 포함)
+- `npm test` 28건 모두 통과 (웹 API 10건, 표지 사진 5건 포함)
 - `hyperframes check`: 에러·경고 0건, 명도 대비 WCAG AA 41/41 통과
 
 샘플은 `samples/`에 있습니다.
@@ -89,6 +117,7 @@ node src/cli.js [all|cards|reel|copy] \
   --template pop         # bold | clean | pop | all
   --variant 2            # 적용할 카피 안 (1~3)
   --bgm 음악.mp3         # 릴스 배경음악 (저작권 확인된 파일만)
+  --image 사진.jpg       # 표지 사진 (카드 1장 + 릴스 첫 장면)
   --no-ai                # Claude 호출 없이 진행
 ```
 
@@ -109,7 +138,8 @@ poc/
 ├─ src/
 │  ├─ ai.js            Claude 카피 생성 · 검증 · 오프라인 대체
 │  ├─ content.js       브리프 → 공통 슬라이드 6장
-│  ├─ templates.js     템플릿 3종 (표면색·부품 스타일) + 명도 대비 계산
+│  ├─ templates.js     템플릿 3종 + 사진 덮개 + 명도 대비 계산
+│  ├─ images.js        표지 사진 검증·정규화 (ffmpeg)
 │  ├─ cards.js         슬라이드 → 카드뉴스 PNG (Satori)
 │  ├─ reel.js          슬라이드 → HyperFrames 프로젝트(장면별 서브 컴포지션) → MP4
 │  ├─ env.js           ffmpeg/ffprobe/Chromium 경로 설정
@@ -117,7 +147,7 @@ poc/
 │  └─ server.js        웹 서버 (node:http · API · 정적 파일 · ZIP)
 ├─ reel/               HyperFrames 프로젝트 (index.html·compositions/는 매번 자동 생성)
 ├─ public/             웹 화면 (index.html · app.js · style.css)
-├─ test/               node:test 테스트 23건
+├─ test/               node:test 테스트 28건
 └─ samples/            결과 샘플
 ```
 
@@ -152,7 +182,8 @@ poc/
 ## 남은 과제
 
 - [ ] 실제 API 키로 카피 품질 확인 (현재는 모의 응답으로 테스트)
-- [ ] 4주차: 실제 강의 3건으로 실사용 테스트, AI 배경 이미지 칸 (공급자 1곳)
+- [ ] 실제 강의 3건으로 실사용 테스트 (강의 정보 필요)
+- [ ] AI 이미지 공급자 1곳 연동 (공급자·API 키 결정 필요)
 - [ ] 외부 공개 배포 시 로그인·사용량 제한
 - [ ] TTS 내레이션
 - [ ] 강의 녹화본에서 쇼츠 추출 (v2)

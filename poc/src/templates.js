@@ -64,3 +64,33 @@ export function contrast(a, b) {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 }
+
+// ── 표지 사진 ──
+// 사진 위 글자가 어떤 사진에서도 읽히도록, 브랜드 dark 색 덮개를 위(옅게)→아래(짙게) 그라데이션으로 깐다.
+// 글자는 카드 아래쪽(덮개 불투명도 PHOTO_TEXT_MIN_ALPHA 이상인 구간)에 배치한다.
+export const PHOTO_TEXT_MIN_ALPHA = 0.72;
+const PHOTO_STOPS = [
+  [0, 0.2],
+  [0.38, PHOTO_TEXT_MIN_ALPHA],
+  [1, 0.9],
+];
+
+const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const toHex = (arr) => '#' + arr.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+
+export function photoOverlay(colors) {
+  const [r, g, b] = rgb(colors.dark);
+  return `linear-gradient(to bottom, ${PHOTO_STOPS.map(([pos, a]) => `rgba(${r},${g},${b},${a}) ${pos * 100}%`).join(', ')})`;
+}
+
+// 사진 표지는 템플릿과 관계없이 어두운 표면 규칙을 쓴다.
+export function photoSurface(colors) {
+  return { bg: colors.dark, fg: colors.light, sub: colors.accent, emphasis: colors.accent, tag: { bg: colors.accent, fg: colors.dark } };
+}
+
+// 알파 합성: 배경 위에 color를 alpha만큼 덮었을 때의 색
+export function blend(color, under, alpha) {
+  const c = rgb(color);
+  const u = rgb(under);
+  return toHex(c.map((v, i) => v * alpha + u[i] * (1 - alpha)));
+}

@@ -4,7 +4,8 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
-import { resolveTheme } from './templates.js';
+import { resolveTheme, photoSurface, photoOverlay } from './templates.js';
+import { imageDataUri } from './images.js';
 
 const require = createRequire(import.meta.url);
 const FONT_DIR = path.join(path.dirname(require.resolve('pretendard/package.json')), 'dist/public/static');
@@ -34,12 +35,15 @@ const h = (style, ...children) => ({
 const lines = (text, style) =>
   h({ flexDirection: 'column', ...style }, ...String(text).split('\n').map((t) => h({}, t)));
 
-function frame(t, s, page, total, handle, body) {
-  const sf = t.surface(s.kind);
+// photo: 표지 사진 { src(data URI), overlay(그라데이션) } — 있으면 사진 위에 덮개를 깔고 글자를 아래쪽에 둔다.
+function frame(t, s, page, total, handle, body, photo) {
+  const sf = photo ? photo.surface : t.surface(s.kind);
+  const full = { position: 'absolute', top: 0, left: 0, width: CARD_W, height: CARD_H };
   return h(
-    { width: CARD_W, height: CARD_H, flexDirection: 'column', backgroundColor: sf.bg, color: sf.fg, fontFamily: 'Pretendard', padding: 96 },
+    { width: CARD_W, height: CARD_H, flexDirection: 'column', backgroundColor: sf.bg, color: sf.fg, fontFamily: 'Pretendard', padding: 96, position: 'relative' },
+    photo ? [{ type: 'img', props: { src: photo.src, style: { ...full, objectFit: 'cover' } } }, h({ ...full, backgroundImage: photo.overlay })] : [],
     h({ width: 120, height: 14, backgroundColor: t.bar, borderRadius: 7 }),
-    h({ flex: 1, flexDirection: 'column', justifyContent: 'center' }, body),
+    h({ flex: 1, flexDirection: 'column', justifyContent: photo ? 'flex-end' : 'center', paddingBottom: photo ? 56 : 0 }, body),
     h({ justifyContent: 'space-between', fontSize: 30, fontWeight: 600, color: sf.sub }, h({}, handle), h({}, `${page} / ${total}`)),
   );
 }
@@ -65,13 +69,14 @@ function bulletList(items, t, marker) {
   );
 }
 
-function slideBody(s, t) {
-  const sf = t.surface(s.kind);
+function slideBody(s, t, photo) {
+  const sf = photo ? photo.surface : t.surface(s.kind);
+  const tag = photo ? photo.surface.tag : t.tag;
   switch (s.kind) {
     case 'cover':
       return h(
         { flexDirection: 'column' },
-        s.tag ? h({ alignSelf: 'flex-start', backgroundColor: t.tag.bg, color: t.tag.fg, fontSize: 36, fontWeight: 700, padding: '14px 32px', borderRadius: 40, marginBottom: 48 }, s.tag) : [],
+        s.tag ? h({ alignSelf: 'flex-start', backgroundColor: tag.bg, color: tag.fg, fontSize: 36, fontWeight: 700, padding: '14px 32px', borderRadius: 40, marginBottom: 48 }, s.tag) : [],
         lines(s.title, { fontSize: 112, fontWeight: 800, lineHeight: 1.15, letterSpacing: -4 }),
         s.subtitle ? h({ fontSize: 56, fontWeight: 700, color: sf.emphasis, marginTop: 40 }, s.subtitle) : [],
         h({ fontSize: 40, fontWeight: 600, color: sf.sub, marginTop: 88 }, `with ${s.instructor}`),
@@ -117,13 +122,18 @@ function slideBody(s, t) {
   }
 }
 
-export async function renderCards(slides, brand, handle, outDir, template = 'bold') {
+// opts.coverImage: 정규화된 표지 사진(JPEG) 경로. 표지(1장)에만 쓴다.
+export async function renderCards(slides, brand, handle, outDir, template = 'bold', { coverImage } = {}) {
   fs.mkdirSync(outDir, { recursive: true });
   const fonts = loadFonts();
   const t = resolveTheme(template, brand.colors);
+  const photo = coverImage
+    ? { src: imageDataUri(coverImage), overlay: photoOverlay(brand.colors), surface: photoSurface(brand.colors) }
+    : undefined;
   const files = [];
   for (const [i, s] of slides.entries()) {
-    const tree = frame(t, s, i + 1, slides.length, handle, slideBody(s, t));
+    const p = s.kind === 'cover' ? photo : undefined;
+    const tree = frame(t, s, i + 1, slides.length, handle, slideBody(s, t, p), p);
     const svg = await satori(tree, { width: CARD_W, height: CARD_H, fonts });
     const png = new Resvg(svg, { fitTo: { mode: 'width', value: CARD_W } }).render().asPng();
     const file = path.join(outDir, `card_${String(i + 1).padStart(2, '0')}_${s.kind}.png`);

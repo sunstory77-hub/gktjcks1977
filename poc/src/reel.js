@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { toolEnv } from './env.js';
-import { resolveTheme } from './templates.js';
+import { resolveTheme, photoSurface, photoOverlay } from './templates.js';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -62,27 +62,41 @@ function sceneMarkup(s) {
 }
 
 // 서브 컴포지션: 장면 하나. 타임라인 시간은 장면 시작 기준(0초부터)이다.
-export function buildSceneHtml(scene, slide, theme, handle, isLast) {
-  const sf = theme.surface(slide.kind);
+// photo: 표지 사진 { src, overlay, surface } — 표지 장면에만 전달된다.
+export function buildSceneHtml(scene, slide, theme, handle, isLast, photo) {
+  const sf = photo ? photo.surface : theme.surface(slide.kind);
   const sel = `[data-composition-id="${scene.id}"]`;
   const exit = isLast
     ? ''
     : `tl.to('${sel} .wrap', { opacity: 0, y: -40, duration: 0.3, ease: "power2.in" }, ${(scene.dur - 0.3).toFixed(2)});`;
+  const photoLayers = photo ? `\n      <img class="bg" src="${esc(photo.src)}" alt="" />\n      <div class="shade"></div>` : '';
+  const photoCss = photo
+    ? `
+      ${sel} .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: 50% 40%; }
+      ${sel} .shade { position: absolute; inset: 0; background: ${photo.overlay}; }
+      ${sel} .scene { justify-content: flex-end; padding-bottom: 260px; }
+      ${sel} .wrap { position: relative; z-index: 1; }
+      ${sel} .bar, ${sel} .foot { z-index: 1; }
+      ${sel} .tag { background: ${photo.surface.tag.bg}; color: ${photo.surface.tag.fg}; }`
+    : '';
+  // 사진은 장면 내내 천천히 확대(켄 번스 효과). 결정적 트윈이라 렌더마다 같은 결과가 나온다.
+  const zoom = photo ? `tl.fromTo('${sel} .bg', { scale: 1 }, { scale: 1.08, duration: ${scene.dur}, ease: "none" }, 0);` : '';
   return `<!-- 자동 생성 파일: src/reel.js가 매 렌더마다 덮어쓴다. -->
 <template id="${scene.id}-template">
   <div data-composition-id="${scene.id}" data-width="${REEL_W}" data-height="${REEL_H}" data-duration="${scene.dur}">
-    <section class="scene" style="background:${sf.bg};color:${sf.fg}">
+    <section class="scene" style="background:${sf.bg};color:${sf.fg}">${photoLayers}
       <div class="bar"></div>
       <div class="wrap">${sceneMarkup(slide)}</div>
       <div class="foot">${esc(handle)}</div>
     </section>
     <style>
       ${sel} .foot, ${sel} .row dt, ${sel} .by { color: ${sf.sub}; }
-      ${sel} .sub, ${sel} .price { color: ${sf.emphasis}; }
+      ${sel} .sub, ${sel} .price { color: ${sf.emphasis}; }${photoCss}
     </style>
     <script>
       (function () {
         const tl = gsap.timeline({ paused: true });
+        ${zoom}
         tl.fromTo('${sel} .anim', { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", stagger: 0.18 }, 0.1);
         ${exit}
         window.__timelines = window.__timelines || {};
@@ -171,7 +185,7 @@ ${mounts}${audio}
 
 const PROJECT_CONFIG_FILES = ['hyperframes.json', 'meta.json'];
 
-function copyAssets(projectDir, bgmFile) {
+function copyAssets(projectDir, bgmFile, coverImage) {
   const fontDir = path.join(path.dirname(require.resolve('pretendard/package.json')), 'dist/public/static');
   const dest = path.join(projectDir, 'assets');
   fs.rmSync(dest, { recursive: true, force: true });
@@ -181,28 +195,40 @@ function copyAssets(projectDir, bgmFile) {
     fs.copyFileSync(path.join(fontDir, `Pretendard-${f}.otf`), path.join(dest, 'fonts', `Pretendard-${f}.otf`));
   }
   fs.copyFileSync(require.resolve('gsap/dist/gsap.min.js'), path.join(dest, 'vendor', 'gsap.min.js'));
-  if (!bgmFile) return undefined;
+  let coverSrc;
+  if (coverImage) {
+    if (!fs.existsSync(coverImage)) throw new Error(`표지 사진 파일이 없습니다: ${coverImage}`);
+    fs.mkdirSync(path.join(dest, 'images'), { recursive: true });
+    coverSrc = 'assets/images/cover.jpg';
+    fs.copyFileSync(coverImage, path.join(projectDir, coverSrc));
+  }
+  if (!bgmFile) return { coverSrc };
   if (!fs.existsSync(bgmFile)) throw new Error(`배경음악 파일이 없습니다: ${bgmFile}`);
   fs.mkdirSync(path.join(dest, 'audio'), { recursive: true });
   const rel = `assets/audio/bgm${path.extname(bgmFile).toLowerCase()}`;
   fs.copyFileSync(bgmFile, path.join(projectDir, rel));
-  return rel;
+  return { bgmSrc: rel, coverSrc };
 }
 
 // projectDir: HyperFrames 프로젝트 폴더. 기본은 poc/reel, 웹 서버는 작업(job)마다 별도 폴더를 쓴다.
-export function writeReelProject(slides, brand, handle, { template = 'bold', bgm, projectDir = REEL_DIR } = {}) {
+// coverImage: 정규화된 표지 사진(JPEG) 경로. 표지 장면 배경으로 쓴다.
+export function writeReelProject(slides, brand, handle, { template = 'bold', bgm, coverImage, projectDir = REEL_DIR } = {}) {
   const theme = resolveTheme(template, brand.colors);
   const scenes = planScenes(slides);
   fs.mkdirSync(projectDir, { recursive: true });
   if (projectDir !== REEL_DIR) {
     for (const f of PROJECT_CONFIG_FILES) fs.copyFileSync(path.join(REEL_DIR, f), path.join(projectDir, f));
   }
-  const bgmSrc = copyAssets(projectDir, bgm);
+  const { bgmSrc, coverSrc } = copyAssets(projectDir, bgm, coverImage);
+  const photo = coverSrc ? { src: coverSrc, overlay: photoOverlay(brand.colors), surface: photoSurface(brand.colors) } : undefined;
   const compDir = path.join(projectDir, 'compositions');
   fs.rmSync(compDir, { recursive: true, force: true });
   fs.mkdirSync(compDir, { recursive: true });
   scenes.forEach((s, i) =>
-    fs.writeFileSync(path.join(compDir, `${s.id}.html`), buildSceneHtml(s, s.slide, theme, handle, i === scenes.length - 1)),
+    fs.writeFileSync(
+      path.join(compDir, `${s.id}.html`),
+      buildSceneHtml(s, s.slide, theme, handle, i === scenes.length - 1, s.kind === 'cover' ? photo : undefined),
+    ),
   );
   fs.writeFileSync(path.join(projectDir, 'index.html'), buildIndexHtml(scenes, theme, { bgmSrc }));
 }

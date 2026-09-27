@@ -30,6 +30,16 @@
           <label>태그 <input name="tag" maxlength="30" placeholder="예: 10월 원데이 특강" /></label>
           <label>강의 제목 <span class="req">*</span> <textarea name="title" rows="2" maxlength="60" placeholder="두 줄까지 (줄바꿈으로 구분)" required></textarea></label>
           <label>부제 <input name="subtitle" maxlength="40" /></label>
+          <div class="photo-field">
+            <label class="file">표지 사진 (선택 · JPG/PNG · 10MB)
+              <input type="file" id="cover" accept=".jpg,.jpeg,.png,image/jpeg,image/png" />
+            </label>
+            <div id="coverPreview" class="cover-preview" hidden>
+              <img id="coverThumb" alt="표지 사진 미리보기" />
+              <button type="button" class="ghost small" id="coverRemove">사진 빼기</button>
+            </div>
+            <p class="note">강사 사진이나 강의 현장 사진을 넣으면 1장 표지와 릴스 첫 장면 배경이 됩니다. 인물 사진은 본인 동의를 받은 것만 사용하세요.</p>
+          </div>
           <div class="row2">
             <label>강사명 <span class="req">*</span> <input name="instructor" maxlength="30" required /></label>
             <label>SNS 계정 <input name="handle" maxlength="30" placeholder="@계정" /></label>

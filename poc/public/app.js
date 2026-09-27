@@ -3,7 +3,7 @@ const $ = (sel) => document.querySelector(sel);
 const form = $('#brief');
 const LIST_FIELDS = ['painPoints', 'curriculum', 'benefits'];
 
-const state = { copy: null, variant: 0, template: 'bold', job: null, meta: null, previewSeq: 0 };
+const state = { copy: null, variant: 0, template: 'bold', job: null, meta: null, previewSeq: 0, imageId: null };
 
 async function api(path, { method = 'GET', body, headers } = {}) {
   const res = await fetch(path, {
@@ -137,7 +137,7 @@ async function preview() {
   try {
     const job = await api('/api/preview', {
       method: 'POST',
-      body: { brief: readBrief(), copy: state.copy, variant: state.variant, template: state.template },
+      body: { brief: readBrief(), copy: state.copy, variant: state.variant, template: state.template, imageId: state.imageId },
     });
     if (seq !== state.previewSeq) return;
     state.job = job;
@@ -229,6 +229,31 @@ $('#copyCaption').addEventListener('click', async () => {
     $('#copyCaption').textContent = '직접 선택해 복사하세요';
   }
   setTimeout(() => ($('#copyCaption').textContent = '캡션 복사'), 1500);
+});
+
+// ── 표지 사진 ──
+$('#cover').addEventListener('change', async () => {
+  const file = $('#cover').files[0];
+  if (!file) return;
+  const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? '').toLowerCase();
+  showAlert('');
+  try {
+    const { imageId } = await api('/api/image', { method: 'POST', body: file, headers: { 'x-file-ext': ext } });
+    state.imageId = imageId;
+    $('#coverThumb').src = URL.createObjectURL(file);
+    $('#coverPreview').hidden = false;
+    if (state.copy) await preview();
+  } catch (err) {
+    $('#cover').value = '';
+    showAlert(err.message, 'error');
+  }
+});
+
+$('#coverRemove').addEventListener('click', async () => {
+  state.imageId = null;
+  $('#cover').value = '';
+  $('#coverPreview').hidden = true;
+  if (state.copy) await preview();
 });
 
 $('#loadSample').addEventListener('click', () => fillBrief(state.meta.sampleBrief));

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { buildSlides } from '../src/content.js';
-import { resolveTheme } from '../src/templates.js';
+import { resolveTheme, photoSurface, photoOverlay } from '../src/templates.js';
 import { planScenes, buildIndexHtml, buildSceneHtml, REEL_DURATION, SCENES } from '../src/reel.js';
 
 const brief = JSON.parse(fs.readFileSync(new URL('../brief.sample.json', import.meta.url)));
@@ -46,4 +46,17 @@ test('입력 텍스트를 이스케이프한다', () => {
   const html = buildSceneHtml(cta, cta.slide, theme, brief.handle, true);
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+});
+
+test('표지 사진: 표지 장면에 사진·덮개·확대 트윈을 넣고 다른 장면은 그대로', () => {
+  const scenes = planScenes(buildSlides(brief));
+  const cover = scenes.find((s) => s.kind === 'cover');
+  const photo = { src: 'assets/images/cover.jpg', overlay: photoOverlay(brand.colors), surface: photoSurface(brand.colors) };
+  const html = buildSceneHtml(cover, cover.slide, theme, brief.handle, false, photo);
+  assert.match(html, /<img class="bg" src="assets\/images\/cover\.jpg"/);
+  assert.match(html, /class="shade"/);
+  assert.match(html, new RegExp(`\\.bg', \\{ scale: 1 \\}, \\{ scale: 1\\.08, duration: ${cover.dur}`));
+  assert.match(html, /justify-content: flex-end/);
+  const plain = buildSceneHtml(cover, cover.slide, theme, brief.handle, false);
+  assert.doesNotMatch(plain, /class="bg"|scale: 1\.08/);
 });

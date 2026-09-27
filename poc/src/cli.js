@@ -5,6 +5,7 @@
 //   --variant <번호>    적용할 카피 안 번호 1~3 (기본 1)
 //   --no-ai             Claude 호출 없이 브리프 문구 그대로 사용
 //   --bgm <파일>        릴스 배경음악(mp3/wav/m4a)
+//   --image <파일>      표지 사진(jpg/png) — 카드 1장과 릴스 표지 장면 배경
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -14,6 +15,7 @@ import { renderCards } from './cards.js';
 import { renderReel } from './reel.js';
 import { TEMPLATE_NAMES } from './templates.js';
 import { generateCopy, offlineCopy, applyCopy, copyToMarkdown } from './ai.js';
+import { normalizeImage } from './images.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { values: opt, positionals } = parseArgs({
@@ -25,6 +27,7 @@ const { values: opt, positionals } = parseArgs({
     variant: { type: 'string', default: '1' },
     'no-ai': { type: 'boolean', default: false },
     bgm: { type: 'string' },
+    image: { type: 'string' },
   },
 });
 const mode = positionals[0] ?? 'all';
@@ -60,19 +63,20 @@ if (mode === 'copy') process.exit(0);
 const variant = Math.min(Math.max(Number(opt.variant) || 1, 1), copy.variants.length) - 1;
 const slides = buildSlides(applyCopy(brief, copy, variant));
 const handle = brief.handle ?? '';
+const coverImage = opt.image ? await normalizeImage(path.resolve(process.cwd(), opt.image), path.join(outDir, 'cover.jpg')) : undefined;
 
 // 2) 템플릿별 렌더
 for (const template of templates) {
   const dir = path.join(outDir, template);
   if (mode === 'cards' || mode === 'all') {
     const t = Date.now();
-    const files = await renderCards(slides, brand, handle, path.join(dir, 'cards'), template);
+    const files = await renderCards(slides, brand, handle, path.join(dir, 'cards'), template, { coverImage });
     console.log(`[${template}] 카드뉴스 ${files.length}장 (${Date.now() - t}ms) → ${path.relative(ROOT, path.join(dir, 'cards'))}/`);
   }
   if (mode === 'reel' || mode === 'all') {
     const t = Date.now();
     const bgm = opt.bgm ? path.resolve(process.cwd(), opt.bgm) : undefined;
-    const file = await renderReel(slides, brand, handle, path.join(dir, 'reel.mp4'), { template, bgm, verbose: true });
+    const file = await renderReel(slides, brand, handle, path.join(dir, 'reel.mp4'), { template, bgm, coverImage, verbose: true });
     console.log(`[${template}] 릴스 (${((Date.now() - t) / 1000).toFixed(1)}s) → ${path.relative(ROOT, file)}`);
   }
 }

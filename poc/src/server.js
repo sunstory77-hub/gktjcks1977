@@ -12,6 +12,7 @@ import { renderCards } from './cards.js';
 import { renderReel } from './reel.js';
 import { TEMPLATE_NAMES, TEMPLATE_LABELS } from './templates.js';
 import { generateCopy, offlineCopy, applyCopy, copyToMarkdown } from './ai.js';
+import { normalizeImage, IMAGE_EXTS, MAX_IMAGE_BYTES } from './images.js';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,6 +24,7 @@ const MAX_BGM = 15 * 1024 * 1024;
 const MAX_JOBS = 30;
 const BGM_EXTS = new Set(['.mp3', '.wav', '.m4a']);
 const ID_RE = /^[0-9a-f-]{36}$/;
+const IMAGE_ID_RE = /^[0-9a-f-]{36}\.jpg$/;
 const FILE_RE = /^(card_\d{2}_[a-z]+\.png|reel\.mp4|copy\.md)$/;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.mp4': 'video/mp4', '.md': 'text/markdown; charset=utf-8', '.otf': 'font/otf', '.json': 'application/json; charset=utf-8' };
 
@@ -201,15 +203,16 @@ export function createApp({
       const variant = Math.min(Math.max(Number(body.variant) || 0, 0), copy.variants.length - 1);
       const applied = applyCopy(brief, copy, variant);
       const slides = buildSlides(applied);
+      const coverImage = resolveImage(body.imageId);
 
       pruneJobs();
       const id = crypto.randomUUID();
       const dir = path.join(jobsDir, id);
       fs.mkdirSync(dir, { recursive: true });
-      const files = await renderCards(slides, brand, brief.handle, dir, template);
+      const files = await renderCards(slides, brand, brief.handle, dir, template, { coverImage });
       fs.writeFileSync(path.join(dir, 'copy.md'), copyToMarkdown(copy, brief));
       fs.writeFileSync(path.join(dir, 'brief.json'), JSON.stringify({ ...applied, template }, null, 2));
-      jobs.set(id, { dir, template, slides, handle: brief.handle, cards: files.map((f) => path.basename(f)), reel: { status: 'idle' } });
+      jobs.set(id, { dir, template, slides, coverImage, handle: brief.handle, cards: files.map((f) => path.basename(f)), reel: { status: 'idle' } });
       return jobView(id, jobs.get(id));
     },
 
@@ -222,7 +225,34 @@ export function createApp({
       fs.writeFileSync(path.join(uploadsDir, id + ext), buf);
       return { bgmId: id + ext };
     },
+
+    // 표지 사진: 올리는 즉시 JPEG로 정규화(크기 조정·메타데이터 제거·이미지 여부 확인)
+    'POST /api/image': async (req) => {
+      const ext = String(req.headers['x-file-ext'] ?? '').toLowerCase();
+      if (!IMAGE_EXTS.has(ext)) throw new HttpError(400, 'JPG 또는 PNG 사진만 사용할 수 있습니다');
+      const buf = await readBody(req, MAX_IMAGE_BYTES);
+      if (buf.length === 0) throw new HttpError(400, '빈 파일입니다');
+      const id = crypto.randomUUID();
+      const raw = path.join(uploadsDir, `${id}.upload${ext}`);
+      fs.writeFileSync(raw, buf);
+      try {
+        await normalizeImage(raw, path.join(uploadsDir, `${id}.jpg`));
+      } catch (err) {
+        throw new HttpError(400, err.message);
+      } finally {
+        fs.rmSync(raw, { force: true });
+      }
+      return { imageId: `${id}.jpg` };
+    },
   };
+
+  function resolveImage(imageId) {
+    if (!imageId) return undefined;
+    if (!IMAGE_ID_RE.test(String(imageId))) throw new HttpError(400, '잘못된 사진 ID');
+    const file = path.join(uploadsDir, imageId);
+    if (!fs.existsSync(file)) throw new HttpError(404, '사진 파일이 없습니다. 다시 올려 주세요');
+    return file;
+  }
 
   async function startReel(req, id) {
     const job = getJob(id);
@@ -242,6 +272,7 @@ export function createApp({
         await reelRenderer(job.slides, brand, job.handle, path.join(job.dir, 'reel.mp4'), {
           template: job.template,
           bgm,
+          coverImage: job.coverImage,
           projectDir: path.join(job.dir, 'project'),
         });
         job.reel = { status: 'done' };

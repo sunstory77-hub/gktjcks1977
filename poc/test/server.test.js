@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { unzipSync, strFromU8 } from 'fflate';
 import { createApp, sanitizeBrief } from '../src/server.js';
+import { makeImage } from './helpers.js';
 
 const brief = JSON.parse(fs.readFileSync(new URL('../brief.sample.json', import.meta.url)));
 let server, base, rendered;
@@ -131,4 +132,28 @@ test('영상 파일은 Range 요청(부분 전송)을 지원한다', async () =>
   const res = await fetch(`${base}/files/${job.jobId}/reel.mp4`, { headers: { range: 'bytes=0-3' } });
   assert.equal(res.status, 206);
   assert.equal(await res.text(), 'fake');
+});
+
+test('표지 사진: 업로드 → JPEG 정규화 → 미리보기·릴스에 반영, 잘못된 입력은 400', async () => {
+  assert.equal((await post('/api/image', Buffer.from('GIF89a'), { 'x-file-ext': '.gif' })).status, 400);
+  const fake = await post('/api/image', Buffer.from('not an image'), { 'x-file-ext': '.jpg' });
+  assert.equal(fake.status, 400);
+  assert.match((await fake.json()).error, /JPG 또는 PNG/);
+
+  const png = fs.readFileSync(makeImage(path.join(os.tmpdir(), `cover-${Date.now()}.png`), { color: 'red' }));
+  const up = await post('/api/image', png, { 'x-file-ext': '.png' });
+  assert.equal(up.status, 200);
+  const { imageId } = await up.json();
+  assert.match(imageId, /^[0-9a-f-]{36}\.jpg$/);
+
+  const { copy } = await (await post('/api/copy', { brief, ai: false })).json();
+  assert.equal((await post('/api/preview', { brief, copy, template: 'bold', imageId: '../x.jpg' })).status, 400);
+  const job = await (await post('/api/preview', { brief, copy, template: 'bold', imageId })).json();
+  assert.equal(job.cards.length, 6);
+  await post(`/api/jobs/${job.jobId}/reel`, {});
+  for (let i = 0; i < 50; i++) {
+    if ((await fetch(`${base}/api/jobs/${job.jobId}`).then((r) => r.json())).reel.status === 'done') break;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.match(rendered.at(-1).coverImage, new RegExp(`${imageId.replace('.', '\\.')}$`));
 });
