@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>홍보공장</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23D95F00%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand"><span class="logo">홍</span> 홍보공장 <small>강의 정보 한 번 입력으로 카드뉴스·릴스 완성</small></div>
+      <ol class="steps" id="steps">
+        <li data-step="1" class="on">① 강의 정보</li>
+        <li data-step="2">② 카피 선택</li>
+        <li data-step="3">③ 미리보기</li>
+        <li data-step="4">④ 릴스·다운로드</li>
+      </ol>
+    </header>
+
+    <main class="layout">
+      <form id="brief" class="panel form" autocomplete="off">
+        <div class="panel-head">
+          <h2>강의 정보</h2>
+          <button type="button" class="ghost" id="loadSample">예시 불러오기</button>
+        </div>
+
+        <fieldset>
+          <legend>표지</legend>
+          <label>태그 <input name="tag" maxlength="30" placeholder="예: 10월 원데이 특강" /></label>
+          <label>강의 제목 <span class="req">*</span> <textarea name="title" rows="2" maxlength="60" placeholder="두 줄까지 (줄바꿈으로 구분)" required></textarea></label>
+          <label>부제 <input name="subtitle" maxlength="40" /></label>
+          <div class="row2">
+            <label>강사명 <span class="req">*</span> <input name="instructor" maxlength="30" required /></label>
+            <label>SNS 계정 <input name="handle" maxlength="30" placeholder="@계정" /></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>대상과 고민</legend>
+          <label>추천 대상 <input name="target" maxlength="60" /></label>
+          <label>수강생 고민 <span class="req">*</span> <textarea name="painPoints" rows="3" placeholder="한 줄에 하나, 최대 3개" required></textarea></label>
+          <label>약속 한 문장 <input name="promise" maxlength="60" placeholder="예: 내일 바로 쓰는 AI 업무 루틴을 완성합니다" /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>강의 내용</legend>
+          <label>커리큘럼 <span class="req">*</span> <textarea name="curriculum" rows="4" placeholder="한 줄에 하나, 최대 4개" required></textarea></label>
+          <label>수강 혜택 <span class="req">*</span> <textarea name="benefits" rows="3" placeholder="한 줄에 하나, 최대 3개" required></textarea></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>일정·신청</legend>
+          <div class="row2">
+            <label>일시 <span class="req">*</span> <input name="date" maxlength="40" required /></label>
+            <label>장소 <span class="req">*</span> <input name="place" maxlength="40" required /></label>
+          </div>
+          <div class="row2">
+            <label>수강료 <input name="price" maxlength="40" /></label>
+            <label>신청 안내 <span class="req">*</span> <input name="cta" maxlength="30" required /></label>
+          </div>
+        </fieldset>
+
+        <div class="actions">
+          <label class="check"><input type="checkbox" id="useAi" checked /> Claude로 카피 3안 만들기</label>
+          <button type="submit" class="primary" id="makeCopy">카피 만들기</button>
+        </div>
+        <p class="note">일시·장소·수강료·커리큘럼·혜택은 AI가 바꾸지 않고 입력값 그대로 들어갑니다.</p>
+      </form>
+
+      <section class="panel result">
+        <div id="alert" class="alert" hidden></div>
+
+        <div id="copySection" class="block" hidden>
+          <h2>카피 선택 <small id="copySource"></small></h2>
+          <div id="variants" class="variants" role="radiogroup"></div>
+          <details class="caption">
+            <summary>인스타그램 캡션 보기</summary>
+            <pre id="caption"></pre>
+            <button type="button" class="ghost small" id="copyCaption">캡션 복사</button>
+          </details>
+        </div>
+
+        <div id="previewSection" class="block" hidden>
+          <div class="panel-head">
+            <h2>카드뉴스 미리보기</h2>
+            <div class="seg" id="templates" role="radiogroup" aria-label="템플릿"></div>
+          </div>
+          <div id="cards" class="cards" aria-live="polite"></div>
+        </div>
+
+        <div id="reelSection" class="block" hidden>
+          <h2>릴스 (15초 · 1080×1920)</h2>
+          <div class="reel-controls">
+            <label class="file">배경음악 (선택, mp3·wav·m4a · 저작권 확인된 파일만)
+              <input type="file" id="bgm" accept=".mp3,.wav,.m4a,audio/*" />
+            </label>
+            <button type="button" class="primary" id="makeReel">릴스 만들기</button>
+          </div>
+          <p id="reelStatus" class="status" aria-live="polite"></p>
+          <video id="reel" controls playsinline hidden></video>
+          <div class="download">
+            <a id="zip" class="primary button" href="#">전체 ZIP 다운로드</a>
+            <span class="note">카드뉴스 6장 · 카피 · 릴스(만든 경우)가 들어 있습니다</span>
+          </div>
+        </div>
+
+        <div id="empty" class="empty">
+          <p>왼쪽에 강의 정보를 입력하고 <b>카피 만들기</b>를 누르세요.</p>
+          <p class="note">처음이라면 <b>예시 불러오기</b>로 흐름을 먼저 확인해 보세요.</p>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

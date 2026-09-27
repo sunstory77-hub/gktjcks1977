@@ -72,7 +72,7 @@ for (const template of templates) {
   if (mode === 'reel' || mode === 'all') {
     const t = Date.now();
     const bgm = opt.bgm ? path.resolve(process.cwd(), opt.bgm) : undefined;
-    const file = await renderReel(slides, brand, handle, path.join(dir, 'reel.mp4'), { template, bgm });
+    const file = await renderReel(slides, brand, handle, path.join(dir, 'reel.mp4'), { template, bgm, verbose: true });
     console.log(`[${template}] 릴스 (${((Date.now() - t) / 1000).toFixed(1)}s) → ${path.relative(ROOT, file)}`);
   }
 }

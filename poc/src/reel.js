@@ -3,7 +3,8 @@
 // 카드뉴스와 같은 슬라이드·템플릿을 쓴다.
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { toolEnv } from './env.js';
@@ -168,9 +169,11 @@ ${mounts}${audio}
 `;
 }
 
-function copyAssets(bgmFile) {
+const PROJECT_CONFIG_FILES = ['hyperframes.json', 'meta.json'];
+
+function copyAssets(projectDir, bgmFile) {
   const fontDir = path.join(path.dirname(require.resolve('pretendard/package.json')), 'dist/public/static');
-  const dest = path.join(REEL_DIR, 'assets');
+  const dest = path.join(projectDir, 'assets');
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(path.join(dest, 'fonts'), { recursive: true });
   fs.mkdirSync(path.join(dest, 'vendor'), { recursive: true });
@@ -182,27 +185,51 @@ function copyAssets(bgmFile) {
   if (!fs.existsSync(bgmFile)) throw new Error(`배경음악 파일이 없습니다: ${bgmFile}`);
   fs.mkdirSync(path.join(dest, 'audio'), { recursive: true });
   const rel = `assets/audio/bgm${path.extname(bgmFile).toLowerCase()}`;
-  fs.copyFileSync(bgmFile, path.join(REEL_DIR, rel));
+  fs.copyFileSync(bgmFile, path.join(projectDir, rel));
   return rel;
 }
 
-export function writeReelProject(slides, brand, handle, { template = 'bold', bgm } = {}) {
+// projectDir: HyperFrames 프로젝트 폴더. 기본은 poc/reel, 웹 서버는 작업(job)마다 별도 폴더를 쓴다.
+export function writeReelProject(slides, brand, handle, { template = 'bold', bgm, projectDir = REEL_DIR } = {}) {
   const theme = resolveTheme(template, brand.colors);
   const scenes = planScenes(slides);
-  const bgmSrc = copyAssets(bgm);
-  const compDir = path.join(REEL_DIR, 'compositions');
+  fs.mkdirSync(projectDir, { recursive: true });
+  if (projectDir !== REEL_DIR) {
+    for (const f of PROJECT_CONFIG_FILES) fs.copyFileSync(path.join(REEL_DIR, f), path.join(projectDir, f));
+  }
+  const bgmSrc = copyAssets(projectDir, bgm);
+  const compDir = path.join(projectDir, 'compositions');
   fs.rmSync(compDir, { recursive: true, force: true });
   fs.mkdirSync(compDir, { recursive: true });
   scenes.forEach((s, i) =>
     fs.writeFileSync(path.join(compDir, `${s.id}.html`), buildSceneHtml(s, s.slide, theme, handle, i === scenes.length - 1)),
   );
-  fs.writeFileSync(path.join(REEL_DIR, 'index.html'), buildIndexHtml(scenes, theme, { bgmSrc }));
+  fs.writeFileSync(path.join(projectDir, 'index.html'), buildIndexHtml(scenes, theme, { bgmSrc }));
 }
 
+const execFileAsync = promisify(execFile);
+
+// 비동기 렌더: 웹 서버의 이벤트 루프를 막지 않는다. quiet=false면 진행 로그를 터미널에 그대로 보여준다.
 export async function renderReel(slides, brand, handle, outFile, opts = {}) {
-  writeReelProject(slides, brand, handle, opts);
+  const projectDir = opts.projectDir ?? REEL_DIR;
+  writeReelProject(slides, brand, handle, { ...opts, projectDir });
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
   const cli = path.join(path.dirname(require.resolve('hyperframes/package.json')), 'bin/hyperframes.mjs');
-  execFileSync(process.execPath, [cli, 'render', '--quiet', '--output', outFile], { cwd: REEL_DIR, env: toolEnv(), stdio: 'inherit' });
+  const child = execFileAsync(process.execPath, [cli, 'render', '--quiet', '--output', outFile], {
+    cwd: projectDir,
+    env: toolEnv(),
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (opts.verbose) {
+    child.child.stdout.pipe(process.stdout);
+    child.child.stderr.pipe(process.stderr);
+  }
+  try {
+    await child;
+  } catch (err) {
+    const tail = String(err.stderr || err.stdout || err.message).trim().split('\n').slice(-5).join('\n');
+    throw new Error(`릴스 렌더 실패: ${tail}`);
+  }
+  if (!fs.existsSync(outFile)) throw new Error('릴스 렌더 결과 파일이 없습니다');
   return outFile;
 }
