@@ -1,0 +1,2 @@
+*.bat -text
+rod_agent/assets/** -text
