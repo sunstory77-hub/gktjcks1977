@@ -34,11 +34,15 @@
             <label class="file">표지 사진 (선택 · JPG/PNG · 10MB)
               <input type="file" id="cover" accept=".jpg,.jpeg,.png,image/jpeg,image/png" />
             </label>
+            <div class="ai-image">
+              <select id="imageStyle" aria-label="AI 배경 스타일"></select>
+              <button type="button" class="ghost small" id="makeImage">AI로 배경 만들기</button>
+            </div>
             <div id="coverPreview" class="cover-preview" hidden>
               <img id="coverThumb" alt="표지 사진 미리보기" />
               <button type="button" class="ghost small" id="coverRemove">사진 빼기</button>
             </div>
-            <p class="note">강사 사진이나 강의 현장 사진을 넣으면 1장 표지와 릴스 첫 장면 배경이 됩니다. 인물 사진은 본인 동의를 받은 것만 사용하세요.</p>
+            <p class="note">강사 사진이나 강의 현장 사진을 넣으면 1장 표지와 릴스 첫 장면 배경이 됩니다. 사진이 없으면 AI로 배경을 만들 수 있습니다(글자는 넣지 않습니다). 인물 사진은 본인 동의를 받은 것만 사용하세요.</p>
           </div>
           <div class="row2">
             <label>강사명 <span class="req">*</span> <input name="instructor" maxlength="30" required /></label>

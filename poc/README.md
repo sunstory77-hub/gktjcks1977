@@ -15,7 +15,8 @@
 | 2주차 | Claude 카피 생성, 템플릿 3종, 릴스 서브 컴포지션 분리, 배경음악 | 완료 |
 | 3주차 | 웹 화면: 입력 폼, 카피 선택, 카드뉴스 미리보기, 릴스 렌더, ZIP 다운로드 | 완료 |
 | 4주차 | 표지 사진 칸 (카드 1장 + 릴스 첫 장면, 명도 대비 보장) | 완료 |
-| 4주차 | 실사용 테스트 (실제 강의 3건), AI 이미지 공급자 연동 | 강의 정보·공급자 결정 대기 |
+| 4주차 | AI 배경 이미지 생성 (Google Gemini, 스타일 3종) | 완료 |
+| 4주차 | 실사용 테스트 (실제 강의 3건) | 1/3 완료 (인천시민대학 3차시) |
 
 ## 웹 화면 (3주차)
 
@@ -69,7 +70,30 @@ npm run serve          # http://127.0.0.1:5173 (PORT, HOST 환경변수로 변�
 
 **주의:** 인물 사진은 본인 동의를 받은 것만 사용하세요.
 
-**AI 이미지 생성과의 관계:** AI 생성 이미지도 같은 칸(`coverImage`)으로 들어갑니다. 공급자를 정하면 `images.js` 앞단에 생성 단계만 추가하면 됩니다.
+## AI 배경 이미지 (4주차)
+
+표지 사진이 없으면 AI로 배경을 만들 수 있습니다. 만든 이미지는 업로드 사진과 같은 칸(`coverImage`)에 들어가므로, 위의 덮개·명도 대비 규칙이 그대로 적용됩니다.
+- 웹: `표지 사진` 아래에서 스타일을 고르고 `AI로 배경 만들기`
+- 명령줄: `node src/cli.js all --ai-image classroom`
+
+| 스타일 | 내용 |
+|---|---|
+| `classroom` (기본) | 강의 현장 사진풍. 한국인 성인 학습자, 사람은 위쪽·아래쪽은 빈 책상 |
+| `workspace` | 책상 위 노트북·노트·커피. 사람 없음 |
+| `abstract` | 브랜드 색(남색·주황·크림)의 추상 도형. 사람·사물 없음 |
+
+**설정**
+- `GEMINI_API_KEY` 환경변수가 필요합니다. [Google AI Studio](https://aistudio.google.com)에서 발급합니다. 키는 파일에 저장하지 말고 환경변수로만 넘기세요.
+- 모델: `gemini-3.1-flash-image` (Nano Banana). `PROMO_IMAGE_MODEL`로 바꿀 수 있습니다.
+- 한 장에 약 8~9초, 9:16(768×1376) JPEG가 나옵니다. 비용은 장당 약 $0.07입니다. [기준: 2026-09 / 확인 필요]
+
+**설계 원칙**
+- 이미지 안에 글자·로고를 넣지 않도록 프롬프트에 명시합니다. 글자는 템플릿이 그립니다.
+- Google에는 강의 주제(제목·부제·대상)만 보냅니다. 일시·가격·강사명은 보내지 않습니다.
+- API 키는 URL이 아니라 헤더로 보냅니다.
+- 생성 결과도 업로드 사진과 같은 검사(이미지 여부 확인, 크기 조정, 메타데이터 제거)를 거칩니다.
+
+샘플: `samples/ai_cover_3styles.png` (인천시민대학 3차시 브리프, 스타일 3종)
 
 샘플
 - `samples/cover_photo_cards.png`: 일반 사진·새하얀 사진 × bold·clean
@@ -86,7 +110,7 @@ npm run serve          # http://127.0.0.1:5173 (PORT, HOST 환경변수로 변�
 | AI 카피 | Claude가 3안·고민 포인트·인스타 캡션·해시태그 생성, 글자 수 한도 검증 |
 
 **검증**
-- `npm test` 28건 모두 통과 (웹 API 10건, 표지 사진 5건 포함)
+- `npm test` 35건 모두 통과 (웹 API 11건, 표지 사진 5건, AI 배경 5건 포함)
 - `hyperframes check`: 에러·경고 0건, 명도 대비 WCAG AA 41/41 통과
 
 샘플은 `samples/`에 있습니다.
@@ -101,6 +125,7 @@ npm run serve          # http://127.0.0.1:5173 (PORT, HOST 환경변수로 변�
 cd poc
 npm install
 export ANTHROPIC_API_KEY=sk-ant-...   # 없으면 브리프 문구로 자동 대체
+export GEMINI_API_KEY=...             # AI 배경 이미지를 쓸 때만
 
 npm run all                   # 카피 + 카드뉴스 + 릴스 (bold)
 npm run all:templates         # 템플릿 3종 모두
@@ -118,6 +143,7 @@ node src/cli.js [all|cards|reel|copy] \
   --variant 2            # 적용할 카피 안 (1~3)
   --bgm 음악.mp3         # 릴스 배경음악 (저작권 확인된 파일만)
   --image 사진.jpg       # 표지 사진 (카드 1장 + 릴스 첫 장면)
+  --ai-image classroom   # AI로 표지 배경 생성 (classroom|workspace|abstract)
   --no-ai                # Claude 호출 없이 진행
 ```
 
@@ -140,6 +166,7 @@ poc/
 │  ├─ content.js       브리프 → 공통 슬라이드 6장
 │  ├─ templates.js     템플릿 3종 + 사진 덮개 + 명도 대비 계산
 │  ├─ images.js        표지 사진 검증·정규화 (ffmpeg)
+│  ├─ imagegen.js      AI 배경 이미지 생성 (Gemini)
 │  ├─ cards.js         슬라이드 → 카드뉴스 PNG (Satori)
 │  ├─ reel.js          슬라이드 → HyperFrames 프로젝트(장면별 서브 컴포지션) → MP4
 │  ├─ env.js           ffmpeg/ffprobe/Chromium 경로 설정
@@ -147,7 +174,7 @@ poc/
 │  └─ server.js        웹 서버 (node:http · API · 정적 파일 · ZIP)
 ├─ reel/               HyperFrames 프로젝트 (index.html·compositions/는 매번 자동 생성)
 ├─ public/             웹 화면 (index.html · app.js · style.css)
-├─ test/               node:test 테스트 28건
+├─ test/               node:test 테스트 35건
 └─ samples/            결과 샘플
 ```
 
@@ -178,12 +205,13 @@ poc/
 - Pretendard: OFL
 - Anthropic SDK: MIT
 - fflate: MIT
+- AI 생성 이미지: Google 생성형 AI 이용약관을 따릅니다 [확인 필요]
 
 ## 남은 과제
 
 - [ ] 실제 API 키로 카피 품질 확인 (현재는 모의 응답으로 테스트)
 - [ ] 실제 강의 3건으로 실사용 테스트 (강의 정보 필요)
-- [ ] AI 이미지 공급자 1곳 연동 (공급자·API 키 결정 필요)
+- [x] AI 이미지 공급자 연동 (Google Gemini)
 - [ ] 외부 공개 배포 시 로그인·사용량 제한
 - [ ] TTS 내레이션
 - [ ] 강의 녹화본에서 쇼츠 추출 (v2)

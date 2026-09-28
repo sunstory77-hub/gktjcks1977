@@ -8,12 +8,20 @@ import { createApp, sanitizeBrief } from '../src/server.js';
 import { makeImage } from './helpers.js';
 
 const brief = JSON.parse(fs.readFileSync(new URL('../brief.sample.json', import.meta.url)));
-let server, base, rendered;
+let server, base, rendered, generated;
 
 before(async () => {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'web-'));
   rendered = [];
+  generated = [];
   server = createApp({
+    // 실제 Gemini 호출 대신 단색 이미지를 만든다. 'fail' 제목이면 API 오류를 흉내 낸다.
+    imageGenerator: async (b, dest, opts) => {
+      generated.push({ brief: b, opts });
+      if (b.title === 'fail') throw new Error('이미지 생성 실패 (429): Quota exceeded');
+      makeImage(dest, { color: 'teal', size: '768x1376' });
+      return { file: dest, prompt: 'p', model: 'fake' };
+    },
     workDir,
     copyGenerator: async () => {
       throw new Error('Could not resolve authentication method');
@@ -156,4 +164,29 @@ test('표지 사진: 업로드 → JPEG 정규화 → 미리보기·릴스에 �
     await new Promise((r) => setTimeout(r, 20));
   }
   assert.match(rendered.at(-1).coverImage, new RegExp(`${imageId.replace('.', '\\.')}$`));
+});
+
+test('AI 배경: 생성 → imageId로 미리보기, 썸네일 제공, 스타일 검증, API 오류는 502', async () => {
+  const meta = await (await fetch(base + '/api/meta')).json();
+  assert.deepEqual(meta.imageStyles.map((s) => s.name), ['classroom', 'workspace', 'abstract']);
+
+  const res = await post('/api/image/generate', { brief, style: 'workspace' });
+  assert.equal(res.status, 200);
+  const { imageId, style } = await res.json();
+  assert.equal(style, 'workspace');
+  assert.equal(generated.at(-1).opts.style, 'workspace');
+  const thumb = await fetch(`${base}/api/image/${imageId}`);
+  assert.equal(thumb.headers.get('content-type'), 'image/jpeg');
+
+  // 알 수 없는 스타일은 기본값으로
+  assert.equal((await (await post('/api/image/generate', { brief, style: '__proto__' })).json()).style, 'classroom');
+
+  const { copy } = await (await post('/api/copy', { brief, ai: false })).json();
+  const job = await (await post('/api/preview', { brief, copy, variant: 0, template: 'bold', imageId })).json();
+  assert.equal(job.cards.length, 6);
+
+  const fail = await post('/api/image/generate', { brief: { ...brief, title: 'fail' } });
+  assert.equal(fail.status, 502);
+  assert.match((await fail.json()).error, /Quota exceeded/);
+  assert.equal((await fetch(`${base}/api/image/..%2Fx.jpg`)).status, 400);
 });

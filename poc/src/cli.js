@@ -6,6 +6,7 @@
 //   --no-ai             Claude 호출 없이 브리프 문구 그대로 사용
 //   --bgm <파일>        릴스 배경음악(mp3/wav/m4a)
 //   --image <파일>      표지 사진(jpg/png) — 카드 1장과 릴스 표지 장면 배경
+//   --ai-image [스타일] AI로 표지 배경 생성 (classroom|workspace|abstract, GEMINI_API_KEY 필요)
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -16,6 +17,7 @@ import { renderReel } from './reel.js';
 import { TEMPLATE_NAMES } from './templates.js';
 import { generateCopy, offlineCopy, applyCopy, copyToMarkdown } from './ai.js';
 import { normalizeImage } from './images.js';
+import { generateCoverImage, IMAGE_STYLES, DEFAULT_IMAGE_STYLE } from './imagegen.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { values: opt, positionals } = parseArgs({
@@ -28,6 +30,7 @@ const { values: opt, positionals } = parseArgs({
     'no-ai': { type: 'boolean', default: false },
     bgm: { type: 'string' },
     image: { type: 'string' },
+    'ai-image': { type: 'string' },
   },
 });
 const mode = positionals[0] ?? 'all';
@@ -63,7 +66,17 @@ if (mode === 'copy') process.exit(0);
 const variant = Math.min(Math.max(Number(opt.variant) || 1, 1), copy.variants.length) - 1;
 const slides = buildSlides(applyCopy(brief, copy, variant));
 const handle = brief.handle ?? '';
-const coverImage = opt.image ? await normalizeImage(path.resolve(process.cwd(), opt.image), path.join(outDir, 'cover.jpg')) : undefined;
+let coverImage;
+if (opt.image) {
+  coverImage = await normalizeImage(path.resolve(process.cwd(), opt.image), path.join(outDir, 'cover.jpg'));
+} else if (opt['ai-image'] !== undefined) {
+  const style = opt['ai-image'] || DEFAULT_IMAGE_STYLE;
+  if (!IMAGE_STYLES[style]) throw new Error(`알 수 없는 이미지 스타일: ${style} (${Object.keys(IMAGE_STYLES).join('|')})`);
+  const t = Date.now();
+  const r = await generateCoverImage(brief, path.join(outDir, 'cover_ai.jpg'), { style });
+  coverImage = r.file;
+  console.log(`AI 표지 배경 생성 (${((Date.now() - t) / 1000).toFixed(1)}s, ${r.model}, ${style}) → out/cover_ai.jpg`);
+}
 
 // 2) 템플릿별 렌더
 for (const template of templates) {

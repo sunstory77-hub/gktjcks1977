@@ -13,6 +13,7 @@ import { renderReel } from './reel.js';
 import { TEMPLATE_NAMES, TEMPLATE_LABELS } from './templates.js';
 import { generateCopy, offlineCopy, applyCopy, copyToMarkdown } from './ai.js';
 import { normalizeImage, IMAGE_EXTS, MAX_IMAGE_BYTES } from './images.js';
+import { generateCoverImage, IMAGE_STYLES, DEFAULT_IMAGE_STYLE } from './imagegen.js';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -26,7 +27,7 @@ const BGM_EXTS = new Set(['.mp3', '.wav', '.m4a']);
 const ID_RE = /^[0-9a-f-]{36}$/;
 const IMAGE_ID_RE = /^[0-9a-f-]{36}\.jpg$/;
 const FILE_RE = /^(card_\d{2}_[a-z]+\.png|reel\.mp4|copy\.md)$/;
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.mp4': 'video/mp4', '.md': 'text/markdown; charset=utf-8', '.otf': 'font/otf', '.json': 'application/json; charset=utf-8' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp4': 'video/mp4', '.md': 'text/markdown; charset=utf-8', '.otf': 'font/otf', '.json': 'application/json; charset=utf-8' };
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -146,6 +147,7 @@ export function createApp({
   workDir = path.join(ROOT, 'out', 'web'),
   copyGenerator = generateCopy,
   reelRenderer = renderReel,
+  imageGenerator = generateCoverImage,
 } = {}) {
   const jobsDir = path.join(workDir, 'jobs');
   const uploadsDir = path.join(workDir, 'uploads');
@@ -182,6 +184,7 @@ export function createApp({
       templates: TEMPLATE_NAMES.map((name) => ({ name, label: TEMPLATE_LABELS[name] })),
       sampleBrief: sanitizeBrief(sampleBrief),
       colors: brand.colors,
+      imageStyles: Object.entries(IMAGE_STYLES).map(([name, s]) => ({ name, label: s.label })),
     }),
 
     'POST /api/copy': async (req) => {
@@ -244,6 +247,20 @@ export function createApp({
         fs.rmSync(raw, { force: true });
       }
       return { imageId: `${id}.jpg` };
+    },
+
+    // AI 배경 생성: 결과는 업로드 사진과 같은 자리(uploads/<id>.jpg)에 저장되어 imageId로 쓴다
+    'POST /api/image/generate': async (req) => {
+      const body = await readJson(req);
+      const brief = sanitizeBrief(body.brief);
+      const style = Object.hasOwn(IMAGE_STYLES, body.style) ? body.style : DEFAULT_IMAGE_STYLE;
+      const id = crypto.randomUUID();
+      try {
+        const { prompt, model } = await imageGenerator(brief, path.join(uploadsDir, `${id}.jpg`), { style });
+        return { imageId: `${id}.jpg`, style, model, prompt };
+      } catch (err) {
+        throw new HttpError(502, err.message);
+      }
     },
   };
 
@@ -331,6 +348,7 @@ export function createApp({
         if (!fs.existsSync(file)) throw new HttpError(404, '없는 파일');
         return sendFile(req, res, file);
       }
+      if ((m = /^\/api\/image\/([^/]+)$/.exec(pathname)) && req.method === 'GET') return sendFile(req, res, resolveImage(m[1]));
       if (req.method === 'GET') return serveStatic(req, res, pathname);
       throw new HttpError(404, '없는 경로');
     } catch (err) {

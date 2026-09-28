@@ -249,6 +249,25 @@ $('#cover').addEventListener('change', async () => {
   }
 });
 
+$('#makeImage').addEventListener('click', async () => {
+  if (!form.elements.title.value.trim()) return showAlert('강의 제목을 먼저 입력하세요', 'error');
+  const btn = $('#makeImage');
+  busy(btn, true, '만드는 중…');
+  showAlert('');
+  try {
+    const { imageId } = await api('/api/image/generate', { method: 'POST', body: { brief: readBrief(), style: $('#imageStyle').value } });
+    state.imageId = imageId;
+    $('#cover').value = '';
+    $('#coverThumb').src = `/api/image/${imageId}`;
+    $('#coverPreview').hidden = false;
+    if (state.copy) await preview();
+  } catch (err) {
+    showAlert(err.message, 'error');
+  } finally {
+    busy(btn, false);
+  }
+});
+
 $('#coverRemove').addEventListener('click', async () => {
   state.imageId = null;
   $('#cover').value = '';
@@ -261,3 +280,11 @@ $('#loadSample').addEventListener('click', () => fillBrief(state.meta.sampleBrie
 // 초기화
 state.meta = await api('/api/meta');
 renderTemplates();
+$('#imageStyle').replaceChildren(
+  ...state.meta.imageStyles.map((st) => {
+    const o = document.createElement('option');
+    o.value = st.name;
+    o.textContent = `AI 배경: ${st.label}`;
+    return o;
+  }),
+);
