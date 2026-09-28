@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { buildSlides, validateBrief } from '../src/content.js';
-import { renderCards, CARD_W, CARD_H } from '../src/cards.js';
+import { renderCards, cardSvg, CARD_W, CARD_H } from '../src/cards.js';
 import { TEMPLATE_NAMES, resolveTheme, contrast } from '../src/templates.js';
 
 const brief = JSON.parse(fs.readFileSync(new URL('../brief.sample.json', import.meta.url)));
@@ -58,4 +58,22 @@ test('카드뉴스: 템플릿마다 1080×1350 PNG 6장', async () => {
       assert.equal(buf.readUInt32BE(20), CARD_H);
     }
   }
+});
+
+// 카드 SVG(embedFont:false)의 <text>를 y좌표로 묶어 줄 단위 문자열로 복원
+function svgLines(svg, fontSize) {
+  const rows = new Map();
+  for (const [, y, text] of svg.matchAll(new RegExp(`<text[^>]*y="([0-9.]+)"[^>]*font-size="${fontSize}"[^>]*>([^<]*)</text>`, 'g'))) {
+    rows.set(y, (rows.get(y) ?? '') + text);
+  }
+  return [...rows.values()].map((l) => l.trim());
+}
+
+test('카드: 한국어 긴 문장은 어절 단위로 줄바꿈 (글자 중간에서 끊지 않음)', async () => {
+  const brand = JSON.parse(fs.readFileSync(new URL('../brand.json', import.meta.url)));
+  const heading = '6블록 공식으로 구조부터 잡습니다'; // 실사용 테스트에서 "구조부/터"로 끊겼던 문장
+  const svg = await cardSvg({ kind: 'promise', heading }, 2, 6, { t: resolveTheme('bold', brand.colors), handle: '@x', embedFont: false });
+  const got = svgLines(svg, 92);
+  assert.ok(got.length >= 2, `줄 수 ${got.length}`);
+  for (const line of got) for (const word of line.split(' ')) assert.ok(heading.split(' ').includes(word), `잘린 어절: "${word}" (${got.join(' / ')})`);
 });

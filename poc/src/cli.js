@@ -4,6 +4,7 @@
 //   --template <이름>   bold | clean | pop | all (기본 bold)
 //   --variant <번호>    적용할 카피 안 번호 1~3 (기본 1)
 //   --no-ai             Claude 호출 없이 브리프 문구 그대로 사용
+//   --copy <파일>       저장해 둔 카피(out/copy.json)를 다시 사용 (Claude 재호출 없음)
 //   --bgm <파일>        릴스 배경음악(mp3/wav/m4a)
 //   --image <파일>      표지 사진(jpg/png) — 카드 1장과 릴스 표지 장면 배경
 //   --ai-image [스타일] AI로 표지 배경 생성 (classroom|workspace|abstract, GEMINI_API_KEY 필요)
@@ -28,6 +29,7 @@ const { values: opt, positionals } = parseArgs({
     template: { type: 'string', default: 'bold' },
     variant: { type: 'string', default: '1' },
     'no-ai': { type: 'boolean', default: false },
+    copy: { type: 'string' },
     bgm: { type: 'string' },
     image: { type: 'string' },
     'ai-image': { type: 'string' },
@@ -46,7 +48,10 @@ fs.mkdirSync(outDir, { recursive: true });
 
 // 1) 카피
 let copy;
-if (opt['no-ai']) {
+if (opt.copy) {
+  copy = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), opt.copy), 'utf8'));
+  console.log(`저장된 카피 사용 (${copy.variants.length}안, ${copy.source})`);
+} else if (opt['no-ai']) {
   copy = offlineCopy(brief);
 } else {
   try {
@@ -60,7 +65,8 @@ if (opt['no-ai']) {
   }
 }
 fs.writeFileSync(path.join(outDir, 'copy.md'), copyToMarkdown(copy, brief));
-console.log('카피: out/copy.md');
+fs.writeFileSync(path.join(outDir, 'copy.json'), JSON.stringify(copy, null, 2));
+console.log('카피: out/copy.md (다시 쓰려면 --copy out/copy.json)');
 if (mode === 'copy') process.exit(0);
 
 const variant = Math.min(Math.max(Number(opt.variant) || 1, 1), copy.variants.length) - 1;

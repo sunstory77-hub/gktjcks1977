@@ -40,7 +40,7 @@ function frame(t, s, page, total, handle, body, photo) {
   const sf = photo ? photo.surface : t.surface(s.kind);
   const full = { position: 'absolute', top: 0, left: 0, width: CARD_W, height: CARD_H };
   return h(
-    { width: CARD_W, height: CARD_H, flexDirection: 'column', backgroundColor: sf.bg, color: sf.fg, fontFamily: 'Pretendard', padding: 96, position: 'relative' },
+    { width: CARD_W, height: CARD_H, flexDirection: 'column', backgroundColor: sf.bg, color: sf.fg, fontFamily: 'Pretendard', wordBreak: 'keep-all', padding: 96, position: 'relative' },
     photo ? [{ type: 'img', props: { src: photo.src, style: { ...full, objectFit: 'cover' } } }, h({ ...full, backgroundImage: photo.overlay })] : [],
     h({ width: 120, height: 14, backgroundColor: t.bar, borderRadius: 7 }),
     h({ flex: 1, flexDirection: 'column', justifyContent: photo ? 'flex-end' : 'center', paddingBottom: photo ? 56 : 0 }, body),
@@ -123,6 +123,12 @@ function slideBody(s, t, photo) {
 }
 
 // opts.coverImage: 정규화된 표지 사진(JPEG) 경로. 표지(1장)에만 쓴다.
+// 카드 1장 → SVG. embedFont:false면 글자가 <text>로 남아 테스트에서 줄바꿈을 확인할 수 있다.
+export async function cardSvg(s, i, total, { t, handle, photo, fonts = loadFonts(), embedFont = true }) {
+  const tree = frame(t, s, i + 1, total, handle, slideBody(s, t, photo), photo);
+  return satori(tree, { width: CARD_W, height: CARD_H, fonts, embedFont });
+}
+
 export async function renderCards(slides, brand, handle, outDir, template = 'bold', { coverImage } = {}) {
   fs.mkdirSync(outDir, { recursive: true });
   const fonts = loadFonts();
@@ -132,9 +138,7 @@ export async function renderCards(slides, brand, handle, outDir, template = 'bol
     : undefined;
   const files = [];
   for (const [i, s] of slides.entries()) {
-    const p = s.kind === 'cover' ? photo : undefined;
-    const tree = frame(t, s, i + 1, slides.length, handle, slideBody(s, t, p), p);
-    const svg = await satori(tree, { width: CARD_W, height: CARD_H, fonts });
+    const svg = await cardSvg(s, i, slides.length, { t, handle, photo: s.kind === 'cover' ? photo : undefined, fonts });
     const png = new Resvg(svg, { fitTo: { mode: 'width', value: CARD_W } }).render().asPng();
     const file = path.join(outDir, `card_${String(i + 1).padStart(2, '0')}_${s.kind}.png`);
     fs.writeFileSync(file, png);

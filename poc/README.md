@@ -17,6 +17,7 @@
 | 4주차 | 표지 사진 칸 (카드 1장 + 릴스 첫 장면, 명도 대비 보장) | 완료 |
 | 4주차 | AI 배경 이미지 생성 (Google Gemini, 스타일 3종) | 완료 |
 | 4주차 | 실사용 테스트 (실제 강의 3건) | 1/3 완료 (인천시민대학 3차시) |
+| 4주차 | Claude 실제 호출 검증 (카피 3안) | 완료 |
 
 ## 웹 화면 (3주차)
 
@@ -110,7 +111,7 @@ npm run serve          # http://127.0.0.1:5173 (PORT, HOST 환경변수로 변�
 | AI 카피 | Claude가 3안·고민 포인트·인스타 캡션·해시태그 생성, 글자 수 한도 검증 |
 
 **검증**
-- `npm test` 35건 모두 통과 (웹 API 11건, 표지 사진 5건, AI 배경 5건 포함)
+- `npm test` 36건 모두 통과 (웹 API 11건, 표지 사진 5건, AI 배경 5건, 카드 줄바꿈 1건 포함)
 - `hyperframes check`: 에러·경고 0건, 명도 대비 WCAG AA 41/41 통과
 
 샘플은 `samples/`에 있습니다.
@@ -145,10 +146,11 @@ node src/cli.js [all|cards|reel|copy] \
   --image 사진.jpg       # 표지 사진 (카드 1장 + 릴스 첫 장면)
   --ai-image classroom   # AI로 표지 배경 생성 (classroom|workspace|abstract)
   --no-ai                # Claude 호출 없이 진행
+  --copy out/copy.json   # 저장된 카피 재사용 (템플릿만 바꿔 다시 렌더할 때 Claude 재호출 없음)
 ```
 
 - 결과물 위치
-  - 카피: `out/copy.md`
+  - 카피: `out/copy.md` (재사용용 원본: `out/copy.json`)
   - 카드뉴스: `out/<템플릿>/cards/`
   - 릴스: `out/<템플릿>/reel.mp4`
 - 필요 환경: Node.js 22 이상
@@ -174,13 +176,14 @@ poc/
 │  └─ server.js        웹 서버 (node:http · API · 정적 파일 · ZIP)
 ├─ reel/               HyperFrames 프로젝트 (index.html·compositions/는 매번 자동 생성)
 ├─ public/             웹 화면 (index.html · app.js · style.css)
-├─ test/               node:test 테스트 35건
+├─ test/               node:test 테스트 36건
 └─ samples/            결과 샘플
 ```
 
 ## 설계 메모
 
 **AI 카피 (`src/ai.js`)**
+- 실제 호출 결과(2026-09-28, 인천시민대학 3차시): 3안이 각각 다른 각도(결과물 완성 / AI 글 과장 불안 / 블로그·상세페이지 차이)로 나왔고, 사실 정보는 브리프 그대로였습니다. 1회 약 21~23초.
 - 공식 SDK `@anthropic-ai/sdk`를 씁니다. 모델은 `claude-opus-5`이고, `PROMO_MODEL` 환경변수로 바꿀 수 있습니다.
 - 적응형 사고(thinking), JSON 스키마 구조화 출력, 서버측 거절 대비 폴백(`fallbacks: "default"`)을 적용했습니다.
 - 사실 정보는 AI가 건드리지 않습니다.
@@ -209,7 +212,7 @@ poc/
 
 ## 남은 과제
 
-- [ ] 실제 API 키로 카피 품질 확인 (현재는 모의 응답으로 테스트)
+- [x] 실제 API 키로 카피 품질 확인 (인천시민대학 3차시, 3안 약 21~23초)
 - [ ] 실제 강의 3건으로 실사용 테스트 (강의 정보 필요)
 - [x] AI 이미지 공급자 연동 (Google Gemini)
 - [ ] 외부 공개 배포 시 로그인·사용량 제한
