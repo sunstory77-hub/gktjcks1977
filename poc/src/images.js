@@ -47,5 +47,27 @@ export async function normalizeImage(src, dest) {
 }
 
 export function imageDataUri(file) {
-  return `data:image/jpeg;base64,${fs.readFileSync(file).toString('base64')}`;
+  const buf = fs.readFileSync(file);
+  const mime = sniff(buf) === 'png' ? 'image/png' : 'image/jpeg';
+  return `data:${mime};base64,${buf.toString('base64')}`;
+}
+
+// 회사 로고: 투명 배경을 살리기 위해 PNG로 정규화한다(JPEG 변환 시 투명 영역이 검게 변함).
+export async function normalizeLogo(src, dest) {
+  const stat = fs.statSync(src);
+  if (stat.size === 0) throw new Error('빈 로고 파일입니다');
+  if (stat.size > MAX_IMAGE_BYTES) throw new Error(`로고가 너무 큽니다 (최대 ${MAX_IMAGE_BYTES / 1024 / 1024}MB)`);
+  const head = Buffer.alloc(8);
+  const fd = fs.openSync(src, 'r');
+  fs.readSync(fd, head, 0, 8, 0);
+  fs.closeSync(fd);
+  if (!sniff(head)) throw new Error('로고는 PNG 또는 JPG만 사용할 수 있습니다');
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const ffmpeg = require('ffmpeg-static');
+  try {
+    await execFileAsync(ffmpeg, ['-v', 'error', '-y', '-i', src, '-vf', "scale='min(800,iw)':'min(400,ih)':force_original_aspect_ratio=decrease", '-frames:v', '1', '-map_metadata', '-1', '-pix_fmt', 'rgba', dest]);
+  } catch {
+    throw new Error('로고를 읽을 수 없습니다. 다른 파일로 시도해 주세요');
+  }
+  return dest;
 }

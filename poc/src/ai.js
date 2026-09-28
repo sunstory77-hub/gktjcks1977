@@ -35,7 +35,11 @@ export const COPY_SCHEMA = {
   },
 };
 
-const SYSTEM = `당신은 교육 강의 홍보 전문 카피라이터입니다. 강사 브랜드 "긍정하쌤"의 톤(밝고 긍정적, 과장 없이 구체적)으로 한국어 카피를 씁니다.
+// 브랜드명·톤은 회사별로 다르다(판매용 앱). 기본값은 PoC 브랜드.
+export const DEFAULT_VOICE = { brandName: '긍정하쌤', tone: '밝고 긍정적, 과장 없이 구체적' };
+
+export function systemPrompt({ brandName, tone } = DEFAULT_VOICE) {
+  return `당신은 교육·강의·행사 홍보 전문 카피라이터입니다. 브랜드 "${brandName || DEFAULT_VOICE.brandName}"의 톤(${tone || DEFAULT_VOICE.tone})으로 한국어 카피를 씁니다.
 
 규칙:
 - 카피 ${VARIANT_COUNT}안을 서로 다른 소구 포인트(angle)로 작성합니다.
@@ -47,6 +51,7 @@ const SYSTEM = `당신은 교육 강의 홍보 전문 카피라이터입니다. 
 - 이모지는 caption에서만 쓸 수 있습니다.
 - caption에는 일시·장소·가격·강사명을 직접 쓰지 않습니다. 그 자리에 {{사실정보}} 한 줄을 정확히 한 번 넣으면 프로그램이 브리프 값으로 채웁니다.
 - caption에 숫자를 쓸 때는 브리프에 있는 숫자만 씁니다.`;
+}
 
 // 사실 정보를 뺀 브리프만 AI에 보낸다(사실은 어차피 덮어쓰지 않지만, 캡션 작성에는 필요).
 function briefForPrompt(brief) {
@@ -105,7 +110,10 @@ export function checkCaption(caption, brief) {
 
 export const fillCaption = (caption, brief) => String(caption).replace(FACT_TOKEN, factLines(brief).join('\n'));
 
-export async function generateCopy(brief, { client = new Anthropic(), model = process.env.PROMO_MODEL || DEFAULT_MODEL } = {}) {
+// 고객이 등록한 API 키로 클라이언트를 만든다(판매용 앱: 키는 서버에서만 복호화해 넘긴다)
+export const anthropicClient = (apiKey) => new Anthropic({ apiKey });
+
+export async function generateCopy(brief, { client = new Anthropic(), model = process.env.PROMO_MODEL || DEFAULT_MODEL, voice = DEFAULT_VOICE } = {}) {
   const response = await client.beta.messages.create({
     model,
     max_tokens: 16000,
@@ -113,7 +121,7 @@ export async function generateCopy(brief, { client = new Anthropic(), model = pr
     fallbacks: 'default',
     thinking: { type: 'adaptive' },
     output_config: { effort: 'medium', format: { type: 'json_schema', schema: COPY_SCHEMA } },
-    system: SYSTEM,
+    system: systemPrompt(voice),
     messages: [
       {
         role: 'user',

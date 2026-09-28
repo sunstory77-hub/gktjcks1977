@@ -1,0 +1,18 @@
+{
+  "name": "promo-factory-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "홍보공장 — 회사정보·API 키 등록형 AI 홍보콘텐츠 서비스 (1~4주차: 멀티 테넌트 기반)",
+  "type": "module",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}

@@ -94,3 +94,41 @@ export function blend(color, under, alpha) {
   const u = rgb(under);
   return toHex(c.map((v, i) => v * alpha + u[i] * (1 - alpha)));
 }
+
+// ── 회사 브랜드 색상 검사·보정 (판매용 앱: 고객이 넣은 색이 대비 기준을 못 넘을 수 있다) ──
+const SLIDE_KINDS = ['cover', 'pain', 'promise', 'curriculum', 'benefits', 'cta'];
+
+// 템플릿 하나에서 글자/배경으로 함께 쓰이는 색 조합 전체
+export function themePairs(name, colors) {
+  const t = resolveTheme(name, colors);
+  const pairs = [
+    ['item', t.item.fg, t.item.bg],
+    ['dot', t.dot.fg, t.dot.bg],
+    ['tag', t.tag.fg, t.tag.bg],
+    ['btn', t.btn.fg, t.btn.bg],
+  ];
+  for (const kind of SLIDE_KINDS) {
+    const sf = t.surface(kind);
+    pairs.push([`${kind}.fg`, sf.fg, sf.bg], [`${kind}.sub`, sf.sub, sf.bg], [`${kind}.emphasis`, sf.emphasis, sf.bg]);
+  }
+  return pairs;
+}
+
+export const MIN_CONTRAST = 3;
+const DARKEN = new Set(['dark', 'primary', 'muted']); // 어둡게 보정할 역할
+const mix = (hex, to, amount) => blend(to, hex, amount);
+
+// 모든 템플릿에서 대비 3:1을 넘을 때까지 색을 조금씩 조정한다.
+// 어두운 역할(dark·primary·muted)은 검정 쪽으로, 밝은 역할(light·accent)은 흰색 쪽으로 옮긴다.
+export function fitColors(colors) {
+  const out = { ...colors };
+  for (let step = 0; step < 60; step++) {
+    const failing = TEMPLATE_NAMES.flatMap((n) => themePairs(n, out)).filter(([, fg, bg]) => contrast(fg, bg) < MIN_CONTRAST);
+    if (!failing.length) break;
+    const roles = new Set();
+    for (const [, fg, bg] of failing) for (const [role, v] of Object.entries(out)) if (v === fg || v === bg) roles.add(role);
+    for (const role of roles) out[role] = mix(out[role], DARKEN.has(role) ? '#000000' : '#FFFFFF', 0.06);
+  }
+  const changed = Object.keys(colors).filter((k) => colors[k].toUpperCase() !== out[k].toUpperCase());
+  return { colors: out, changed };
+}

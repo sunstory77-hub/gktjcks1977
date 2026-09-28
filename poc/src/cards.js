@@ -36,13 +36,15 @@ const lines = (text, style) =>
   h({ flexDirection: 'column', ...style }, ...String(text).split('\n').map((t) => h({}, t)));
 
 // photo: 표지 사진 { src(data URI), overlay(그라데이션) } — 있으면 사진 위에 덮개를 깔고 글자를 아래쪽에 둔다.
-function frame(t, s, page, total, handle, body, photo) {
+function frame(t, s, page, total, handle, body, photo, logo) {
   const sf = photo ? photo.surface : t.surface(s.kind);
   const full = { position: 'absolute', top: 0, left: 0, width: CARD_W, height: CARD_H };
   return h(
     { width: CARD_W, height: CARD_H, flexDirection: 'column', backgroundColor: sf.bg, color: sf.fg, fontFamily: 'Pretendard', wordBreak: 'keep-all', padding: 96, position: 'relative' },
     photo ? [{ type: 'img', props: { src: photo.src, style: { ...full, objectFit: 'cover' } } }, h({ ...full, backgroundImage: photo.overlay })] : [],
     h({ width: 120, height: 14, backgroundColor: t.bar, borderRadius: 7 }),
+    // 회사 로고: 표지·신청 카드 오른쪽 위 (가로 최대 240, 세로 72)
+    logo ? [{ type: 'img', props: { src: logo, style: { position: 'absolute', top: 68, right: 96, maxWidth: 240, height: 72, objectFit: 'contain' } } }] : [],
     h({ flex: 1, flexDirection: 'column', justifyContent: photo ? 'flex-end' : 'center', paddingBottom: photo ? 56 : 0 }, body),
     h({ justifyContent: 'space-between', fontSize: 30, fontWeight: 600, color: sf.sub }, h({}, handle), h({}, `${page} / ${total}`)),
   );
@@ -124,21 +126,22 @@ function slideBody(s, t, photo) {
 
 // opts.coverImage: 정규화된 표지 사진(JPEG) 경로. 표지(1장)에만 쓴다.
 // 카드 1장 → SVG. embedFont:false면 글자가 <text>로 남아 테스트에서 줄바꿈을 확인할 수 있다.
-export async function cardSvg(s, i, total, { t, handle, photo, fonts = loadFonts(), embedFont = true }) {
-  const tree = frame(t, s, i + 1, total, handle, slideBody(s, t, photo), photo);
+export async function cardSvg(s, i, total, { t, handle, photo, logo, fonts = loadFonts(), embedFont = true }) {
+  const tree = frame(t, s, i + 1, total, handle, slideBody(s, t, photo), photo, ['cover', 'cta'].includes(s.kind) ? logo : undefined);
   return satori(tree, { width: CARD_W, height: CARD_H, fonts, embedFont });
 }
 
-export async function renderCards(slides, brand, handle, outDir, template = 'bold', { coverImage } = {}) {
+export async function renderCards(slides, brand, handle, outDir, template = 'bold', { coverImage, logo } = {}) {
   fs.mkdirSync(outDir, { recursive: true });
   const fonts = loadFonts();
   const t = resolveTheme(template, brand.colors);
   const photo = coverImage
     ? { src: imageDataUri(coverImage), overlay: photoOverlay(brand.colors), surface: photoSurface(brand.colors) }
     : undefined;
+  const logoUri = logo ? imageDataUri(logo) : undefined;
   const files = [];
   for (const [i, s] of slides.entries()) {
-    const svg = await cardSvg(s, i, slides.length, { t, handle, photo: s.kind === 'cover' ? photo : undefined, fonts });
+    const svg = await cardSvg(s, i, slides.length, { t, handle, photo: s.kind === 'cover' ? photo : undefined, logo: logoUri, fonts });
     const png = new Resvg(svg, { fitTo: { mode: 'width', value: CARD_W } }).render().asPng();
     const file = path.join(outDir, `card_${String(i + 1).padStart(2, '0')}_${s.kind}.png`);
     fs.writeFileSync(file, png);
