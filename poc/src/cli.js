@@ -58,6 +58,7 @@ if (opt.copy) {
     const t = Date.now();
     copy = await generateCopy(brief);
     console.log(`AI 카피 ${copy.variants.length}안 생성 (${((Date.now() - t) / 1000).toFixed(1)}s, ${copy.source})`);
+    for (const w of copy.warnings ?? []) console.warn(`⚠ ${w}`);
   } catch (err) {
     const why = /authentication|api.?key/i.test(err.message) ? 'Claude API 인증 정보 없음 (ANTHROPIC_API_KEY 설정 필요)' : err.message;
     console.warn(`⚠ AI 카피 생성 실패 → 브리프 문구로 진행합니다: ${why}`);

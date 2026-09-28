@@ -192,7 +192,8 @@ export function createApp({
       const brief = sanitizeBrief(body.brief);
       if (!body.ai) return { copy: offlineCopy(brief) };
       try {
-        return { copy: await copyGenerator(brief) };
+        const copy = await copyGenerator(brief);
+        return copy.warnings?.length ? { copy, warning: copy.warnings.join(' / ') } : { copy };
       } catch (err) {
         const why = /authentication|api.?key/i.test(err.message) ? 'Claude API 인증 정보가 없습니다 (ANTHROPIC_API_KEY)' : err.message;
         return { copy: offlineCopy(brief), warning: `AI 카피 생성 실패 → 입력 문구로 대체했습니다: ${why}` };

@@ -30,7 +30,7 @@ export const COPY_SCHEMA = {
   properties: {
     variants: { type: 'array', items: variantSchema },
     painPoints: { type: 'array', items: { type: 'string' } },
-    caption: { type: 'string', description: '인스타그램 본문 캡션. 사실 정보는 브리프 값 그대로.' },
+    caption: { type: 'string', description: '인스타그램 본문 캡션. 일시·장소·가격·강사는 직접 쓰지 말고 {{사실정보}} 자리표시자 한 줄로 둡니다.' },
     hashtags: { type: 'array', items: { type: 'string' } },
   },
 };
@@ -44,7 +44,9 @@ const SYSTEM = `당신은 교육 강의 홍보 전문 카피라이터입니다. 
   tag ${LIMITS.tag}자, title 한 줄 ${LIMITS.titleLine}자 × 최대 ${LIMITS.titleLines}줄(줄바꿈은 \\n), subtitle ${LIMITS.subtitle}자, promise ${LIMITS.promise}자, cta ${LIMITS.cta}자, painPoints 각 ${LIMITS.painPoint}자.
 - painPoints는 수강 대상이 실제로 겪는 고민 정확히 3개입니다.
 - hashtags는 '#' 없이 5~10개입니다.
-- 이모지는 caption에서만 쓸 수 있습니다.`;
+- 이모지는 caption에서만 쓸 수 있습니다.
+- caption에는 일시·장소·가격·강사명을 직접 쓰지 않습니다. 그 자리에 {{사실정보}} 한 줄을 정확히 한 번 넣으면 프로그램이 브리프 값으로 채웁니다.
+- caption에 숫자를 쓸 때는 브리프에 있는 숫자만 씁니다.`;
 
 // 사실 정보를 뺀 브리프만 AI에 보낸다(사실은 어차피 덮어쓰지 않지만, 캡션 작성에는 필요).
 function briefForPrompt(brief) {
@@ -69,6 +71,39 @@ export function validateCopy(copy) {
   (copy.painPoints ?? []).forEach((p, i) => len(p) > LIMITS.painPoint && errors.push(`painPoints[${i}] ${len(p)}자 (최대 ${LIMITS.painPoint})`));
   return errors;
 }
+
+// ── 캡션의 사실 정보 ──
+// 캡션은 자유 문장이라 AI가 사실을 바꿔 쓸 수 있다(실사용 테스트에서 "일시 확인 필요"를 "별도 안내 예정"으로 바꾼 사례).
+// 그래서 AI는 {{사실정보}} 자리표시자만 쓰고, 일시·장소·가격·강사 줄은 프로그램이 브리프 값으로 채운다.
+export const FACT_TOKEN = '{{사실정보}}';
+
+export function factLines(brief) {
+  return [
+    `🗓 ${brief.date}`,
+    `📍 ${brief.place}`,
+    brief.price ? `💰 ${brief.price}` : '',
+    brief.instructor ? `🙋 강사 ${brief.instructor}` : '',
+  ].filter(Boolean);
+}
+
+// AI 캡션 검사: 자리표시자 1회, 사실 라벨 직접 작성 금지, 브리프에 없는 숫자 금지
+export function checkCaption(caption, brief) {
+  const errors = [];
+  const text = String(caption ?? '');
+  const n = text.split(FACT_TOKEN).length - 1;
+  if (n !== 1) errors.push(`${FACT_TOKEN} 자리표시자 ${n}회 (정확히 1회여야 함)`);
+  const body = text.replaceAll(FACT_TOKEN, '');
+  const label = /(일시|날짜|장소|수강료|가격|강사)\s*[:：]/.exec(body);
+  if (label) errors.push(`사실 정보를 직접 씀: "${label[0]}"`);
+  const known = JSON.stringify(brief);
+  for (const num of body.match(/\d[\d,.:~]*/g) ?? []) {
+    const core = num.replace(/[,.:~]+$/, '');
+    if (!known.includes(core)) errors.push(`브리프에 없는 숫자: "${core}"`);
+  }
+  return errors;
+}
+
+export const fillCaption = (caption, brief) => String(caption).replace(FACT_TOKEN, factLines(brief).join('\n'));
 
 export async function generateCopy(brief, { client = new Anthropic(), model = process.env.PROMO_MODEL || DEFAULT_MODEL } = {}) {
   const response = await client.beta.messages.create({
@@ -104,7 +139,15 @@ export async function generateCopy(brief, { client = new Anthropic(), model = pr
   }
   const errors = validateCopy(copy);
   if (errors.length) throw new Error(`AI 카피가 레이아웃 한도를 넘었습니다: ${errors.join('; ')}`);
-  return { ...copy, source: `ai:${response.model}` };
+  // 캡션만 문제면 카피 3안은 살리고 캡션은 브리프 문구로 대체한다
+  const captionErrors = checkCaption(copy.caption, brief);
+  const caption = captionErrors.length ? offlineCopy(brief).caption : fillCaption(copy.caption, brief);
+  return {
+    ...copy,
+    caption,
+    source: `ai:${response.model}`,
+    ...(captionErrors.length && { warnings: [`AI 캡션을 브리프 문구로 대체했습니다: ${captionErrors.join('; ')}`] }),
+  };
 }
 
 // API 없이 브리프 문구로 카피 1안을 만든다.
@@ -130,9 +173,7 @@ export function offlineCopy(brief) {
       '',
       ...brief.painPoints.slice(0, 3).map((p) => `✔ ${p}`),
       '',
-      `📅 ${brief.date}`,
-      `📍 ${brief.place}`,
-      brief.price ? `💰 ${brief.price}` : '',
+      ...factLines(brief),
       '',
       `👉 ${brief.cta}`,
     ]
