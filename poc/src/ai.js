@@ -109,7 +109,9 @@ export async function generateCopy(brief, { client = new Anthropic(), model = pr
 
 // API 없이 브리프 문구로 카피 1안을 만든다.
 export function offlineCopy(brief) {
-  const tags = ['AI활용', '업무자동화', brief.instructor, '원데이클래스', '직장인공부'].map((t) => String(t).replace(/[\s#@]/g, ''));
+  // 브리프에 hashtags가 있으면 그것을 쓰고, 없으면 기본 태그를 쓴다.
+  const base = brief.hashtags?.length ? brief.hashtags : ['AI활용', '업무자동화', '원데이클래스', '직장인공부'];
+  const tags = [...base, brief.instructor].map((t) => String(t).replace(/[\s#@]/g, ''));
   return {
     source: 'offline',
     variants: [

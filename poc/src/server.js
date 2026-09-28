@@ -59,6 +59,7 @@ export function sanitizeBrief(raw = {}) {
     price: str(raw.price, 40),
     cta: str(raw.cta, 30),
     handle: str(raw.handle, 30),
+    hashtags: list(raw.hashtags, 10, 30),
   };
   try {
     validateBrief(brief);

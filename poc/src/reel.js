@@ -147,7 +147,7 @@ export function buildIndexHtml(scenes, theme, { bgmSrc } = {}) {
       ${font(800, 'ExtraBold')}
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: ${REEL_W}px; height: ${REEL_H}px; overflow: hidden; background: ${theme.surface('pain').bg}; }
-      #root { position: relative; width: 100%; height: 100%; font-family: "Pretendard", sans-serif; }
+      #root { position: relative; width: 100%; height: 100%; font-family: "Pretendard", sans-serif; word-break: keep-all; overflow-wrap: anywhere; }
       .scene-host { position: absolute; inset: 0; }
       .scene { position: absolute; inset: 0; padding: 150px 96px; display: flex; flex-direction: column; justify-content: center; }
       .wrap { display: flex; flex-direction: column; }

@@ -77,3 +77,9 @@ test('offlineCopy: API 없이 브리프 문구로 1안 + 캡션(사실 정보 �
   assert.ok(c.hashtags.every((t) => !/[\s#@]/.test(t)));
   assert.match(copyToMarkdown(c, brief), /## 1안 · 브리프 원문/);
 });
+
+test('offlineCopy: 브리프 hashtags가 있으면 기본 태그 대신 사용', () => {
+  const c = offlineCopy({ ...brief, hashtags: ['인천시민대학', '#블로그 글쓰기'] });
+  assert.deepEqual(c.hashtags, ['인천시민대학', '블로그글쓰기', brief.instructor.replace(/\s/g, '')]);
+  assert.ok(offlineCopy(brief).hashtags.includes('AI활용'));
+});

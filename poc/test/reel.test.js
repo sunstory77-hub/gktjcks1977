@@ -20,6 +20,8 @@ test('루트 컴포지션: 15초, 장면 5개를 이어 붙여 서브 컴포지�
     t += s.dur;
   });
   assert.match(html, /window\.__timelines\["main"\] = tl/);
+  // 한국어는 어절 단위로 줄바꿈 (글자 중간에서 끊기지 않게)
+  assert.match(html, /#root \{[^}]*word-break: keep-all/);
   assert.doesNotMatch(html, /<audio/);
   assert.doesNotMatch(html, /Math\.random|Date\.now|https?:\/\//);
 });
