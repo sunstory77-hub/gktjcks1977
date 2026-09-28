@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로드 업무 에이전트</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="logo">R</span>
+      <div><b>로드 업무 에이전트</b><small id="ver"></small></div>
+    </div>
+    <button id="newBtn" class="primary wide">＋ 새 작업</button>
+    <div class="label">업무 모드</div>
+    <nav id="modes"></nav>
+    <div class="label">최근 작업</div>
+    <ul id="sessions"></ul>
+    <div class="side-foot">
+      <button id="outputsBtn" class="ghost wide">📁 산출물 보기</button>
+      <button id="settingsBtn" class="ghost wide">⚙ 설정</button>
+    </div>
+  </aside>
+
+  <main>
+    <header id="topbar">
+      <button id="menuBtn" class="icon" title="메뉴">☰</button>
+      <div id="modeTitle"></div>
+      <div class="controls">
+        <label title="결과 파일 형식">파일
+          <select id="fmtSel">
+            <option value="">모드 기본</option>
+            <option value="hwpx">HWPX</option>
+            <option value="docx">DOCX</option>
+            <option value="pptx">PPTX</option>
+            <option value="xlsx">XLSX</option>
+            <option value="none">만들지 않음</option>
+          </select>
+        </label>
+        <label title="모델">모델 <select id="modelSel"></select></label>
+        <label title="생각 깊이">깊이
+          <select id="effortSel">
+            <option value="low">빠르게</option>
+            <option value="medium" selected>보통</option>
+            <option value="high">깊게</option>
+          </select>
+        </label>
+        <label class="toggle" title="최신 정보가 필요할 때 웹 검색"><input type="checkbox" id="webChk"> 웹검색</label>
+      </div>
+    </header>
+
+    <section id="chat">
+      <div id="welcome">
+        <h1>무엇을 만들까요?</h1>
+        <p>업무 모드를 고르고 요청하면, 완성본을 작성하고 <b>HWPX·PPTX·DOCX·XLSX</b> 파일까지 만들어 검증합니다.</p>
+        <div id="examples"></div>
+      </div>
+      <div id="messages"></div>
+    </section>
+
+    <footer id="composer">
+      <div id="attachList"></div>
+      <div class="inputRow">
+        <button id="attachBtn" class="icon" title="파일 첨부 (PDF·DOCX·XLSX·PPTX·HWPX·이미지·CSV)">📎</button>
+        <input type="file" id="fileInput" multiple hidden>
+        <textarea id="input" rows="1" placeholder="요청을 입력하세요. Enter 전송 · Shift+Enter 줄바꿈 · 파일은 끌어다 놓기"></textarea>
+        <button id="sendBtn" class="primary">전송</button>
+      </div>
+      <div class="hint">트리거: <code>납품</code> <code>재검증</code> <code>변형 [대상]</code> <code>축약 [분량]</code> <code>이어서</code></div>
+    </footer>
+  </main>
+
+  <aside id="outputs" class="drawer">
+    <div class="drawer-head"><b>산출물</b>
+      <span><button id="openFolderBtn" class="ghost sm">폴더 열기</button>
+      <button class="icon close" data-close="outputs">✕</button></span></div>
+    <div id="outDir" class="muted small"></div>
+    <ul id="outList"></ul>
+  </aside>
+</div>
+
+<div id="settings" class="modal hidden">
+  <div class="modal-box">
+    <h2>설정</h2>
+    <label>Anthropic API 키
+      <input type="password" id="keyInput" placeholder="sk-ant-... (변경할 때만 입력)">
+    </label>
+    <p class="muted small" id="keyState"></p>
+    <label>산출물 저장 폴더
+      <input type="text" id="dirInput" placeholder="비우면 프로그램 폴더\outputs">
+    </label>
+    <label>기본 모델 <select id="defModelSel"></select></label>
+    <div class="modal-actions">
+      <button class="ghost" data-close="settings">취소</button>
+      <button id="saveSettings" class="primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="dropzone" class="hidden">여기에 놓으면 첨부됩니다</div>
+<div id="toast" class="hidden"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
