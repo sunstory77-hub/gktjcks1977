@@ -60,10 +60,20 @@ CREATE TABLE IF NOT EXISTS usage_log (
 );
 `;
 
+// 기존 DB에 새 열을 더한다(5~8주: 인스타 광고 문구·상세페이지 문안)
+const ADDED_COLUMNS = [
+  ['campaigns', 'ad_copy', 'TEXT'],
+  ['campaigns', 'detail', 'TEXT'],
+];
+
 export function openDb(file) {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  for (const [table, col, type] of ADDED_COLUMNS) {
+    const has = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col);
+    if (!has) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+  }
   return db;
 }
 

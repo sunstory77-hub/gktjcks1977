@@ -13,15 +13,21 @@ import { buildSlides } from '../../poc/src/content.js';
 import { renderCards } from '../../poc/src/cards.js';
 import { renderReel } from '../../poc/src/reel.js';
 import { TEMPLATE_NAMES, TEMPLATE_LABELS } from '../../poc/src/templates.js';
-import { generateCopy, anthropicClient, offlineCopy, applyCopy, copyToMarkdown } from '../../poc/src/ai.js';
+import { generateCopy, anthropicClient, offlineCopy, applyCopy, copyToMarkdown, DEFAULT_MODEL } from '../../poc/src/ai.js';
 import { normalizeImage, normalizeLogo, IMAGE_EXTS, MAX_IMAGE_BYTES } from '../../poc/src/images.js';
-import { generateCoverImage, IMAGE_STYLES, DEFAULT_IMAGE_STYLE } from '../../poc/src/imagegen.js';
+import { generateCoverImage, IMAGE_STYLES, DEFAULT_IMAGE_STYLE, DEFAULT_IMAGE_MODEL } from '../../poc/src/imagegen.js';
 import { sanitizeBrief } from '../../poc/src/server.js';
+import { generateAdCopy, offlineAdCopy, generateDetail, offlineDetail } from '../../poc/src/formats.js';
+import { renderAdImages, AD_SIZES } from '../../poc/src/adimage.js';
+import { renderDetailPage } from '../../poc/src/detailpage.js';
+import { importFacts, IMPORT_TYPES, MAX_IMPORT_BYTES } from '../../poc/src/importer.js';
+import { reviewTexts, formatHit } from '../../poc/src/review.js';
+import { labelPng, labelMp4 } from '../../poc/src/ailabel.js';
 
 import { openDb, now, json, parse } from './db.js';
 import { hashPassword, verifyPassword, newToken, tokenHash, loadMasterKey, encryptSecret, decryptSecret } from './security.js';
 import { PROVIDERS, testKey } from './providers.js';
-import { DEFAULT_BRAND, sanitizeProfile, sanitizeBrand, findForbidden } from './brand.js';
+import { DEFAULT_BRAND, sanitizeProfile, sanitizeBrand, copyEntries, adEntries, detailEntries } from './brand.js';
 import { HttpError, readBody, readJson, sendJson, parseCookies, cookie, sendFile, router } from './http.js';
 
 const require = createRequire(import.meta.url);
@@ -32,12 +38,24 @@ const SAMPLE_FACTS = JSON.parse(fs.readFileSync(path.join(APP_ROOT, '..', 'poc',
 
 const SESSION_DAYS = 14;
 const ID_RE = /^[0-9a-f-]{36}$/;
-const FILE_RE = /^(card_\d{2}_[a-z]+\.png|reel\.mp4)$/;
+const FILE_RE = /^(card_\d{2}_[a-z]+\.png|reel\.mp4|ad_(square|portrait|story)\.png|detail_\d{2}_[a-z]+\.png)$/;
+const GROUPS = new Set(['ads', 'detail']); // 템플릿 폴더 외 결과물 폴더
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // 기본 생성기: 회사 키로 호출. 테스트에서는 가짜 생성기를 주입한다.
 const defaultCopyGenerator = (facts, { apiKey, model, voice }) => generateCopy(facts, { client: anthropicClient(apiKey), model, voice });
 const defaultImageGenerator = (facts, dest, { apiKey, model, style }) => generateCoverImage(facts, dest, { apiKey, model, style });
+const defaultAdGenerator = (facts, { apiKey, model, voice }) => generateAdCopy(facts, { client: anthropicClient(apiKey), model, voice });
+const defaultDetailGenerator = (facts, { apiKey, model, voice }) => generateDetail(facts, { client: anthropicClient(apiKey), model, voice });
+const defaultImporter = (buf, type, { apiKey, model }) => importFacts(buf, type, { client: anthropicClient(apiKey), model });
+
+function adCopyMarkdown(adCopy, chosen) {
+  const out = ['# 인스타그램 광고 문구', '', adCopy.source === 'offline' ? '작성: 입력 문구 기반' : '작성: 생성형 AI 활용', ''];
+  adCopy.ads.forEach((a, i) => {
+    out.push(`## ${i + 1}안 · ${a.angle}${i === chosen ? ' (이미지에 사용)' : ''}`, '', '**본문**', '', a.primaryText, '', `**제목** ${a.headline}`, '', `**설명** ${a.description}`, '', `**이미지 문구** ${a.overlay} / ${a.overlaySub}`, '');
+  });
+  return out.join('\n');
+}
 
 export function createApp({
   dataDir = path.join(APP_ROOT, 'data'),
@@ -46,6 +64,9 @@ export function createApp({
   imageGenerator = defaultImageGenerator,
   reelRenderer = renderReel,
   keyTester = testKey,
+  adGenerator = defaultAdGenerator,
+  detailGenerator = defaultDetailGenerator,
+  importer = defaultImporter,
 } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
@@ -84,10 +105,18 @@ export function createApp({
     return cookie('sid', token, { maxAge: SESSION_DAYS * 86400, secure: secureCookie });
   }
 
+  // 키 확인 때 저장한 모델보다 엔진의 현재 기본 모델을 우선한다(그 키로 쓸 수 있을 때). 화면 표시와 실제 호출이 같은 값을 쓴다.
+  function effectiveMeta(provider, meta) {
+    const m = { ...meta };
+    if (provider === 'anthropic' && m.models?.includes(DEFAULT_MODEL)) m.textModel = DEFAULT_MODEL;
+    if (provider === 'gemini' && m.models?.includes(DEFAULT_IMAGE_MODEL)) m.imageModel = DEFAULT_IMAGE_MODEL;
+    return m;
+  }
+
   function getKey(cid, provider) {
     const row = q('SELECT ciphertext, meta FROM api_keys WHERE company_id = ? AND provider = ?').get(cid, provider);
     if (!row) return null;
-    return { apiKey: decryptSecret(masterKey, row.ciphertext, cid, provider), meta: parse(row.meta) };
+    return { apiKey: decryptSecret(masterKey, row.ciphertext, cid, provider), meta: effectiveMeta(provider, parse(row.meta)) };
   }
 
   function logUsage(cid, provider, kind, ok, ms) {
@@ -97,7 +126,17 @@ export function createApp({
   function getCampaign(cid, id) {
     const row = ID_RE.test(id) && q('SELECT * FROM campaigns WHERE id = ? AND company_id = ?').get(id, cid);
     if (!row) throw new HttpError(404, '캠페인을 찾을 수 없습니다');
-    return { id: row.id, title: row.title, facts: parse(row.facts), copy: parse(row.copy, null), coverFile: row.cover_file, createdAt: row.created_at, updatedAt: row.updated_at };
+    return {
+      id: row.id,
+      title: row.title,
+      facts: parse(row.facts),
+      copy: parse(row.copy, null),
+      adCopy: parse(row.ad_copy, null),
+      detail: parse(row.detail, null),
+      coverFile: row.cover_file,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
   }
 
   const campaignView = (c) => {
@@ -107,14 +146,18 @@ export function createApp({
       title: c.title,
       facts: c.facts,
       copy: c.copy,
+      adCopy: c.adCopy,
+      detail: c.detail,
       hasCover: Boolean(c.coverFile),
       updatedAt: c.updatedAt,
-      render: r && {
+      render: r?.cards && {
         template: r.template,
         variant: r.variant,
         cards: r.cards.map((f) => `/files/campaigns/${c.id}/${r.template}/${f}`),
         reel: { status: r.reel.status, error: r.reel.error, url: r.reel.status === 'done' ? `/files/campaigns/${c.id}/${r.template}/reel.mp4` : null },
       },
+      ads: r?.ads && { variant: r.ads.variant, images: Object.fromEntries(Object.entries(r.ads.files).map(([k, f]) => [k, `/files/campaigns/${c.id}/ads/${f}`])) },
+      detailImages: r?.detail && r.detail.files.map((f) => `/files/campaigns/${c.id}/detail/${f}`),
     };
   };
 
@@ -125,6 +168,34 @@ export function createApp({
   }
 
   const brandForEngine = (company) => ({ colors: company.brand.colors });
+  const renderState = (id) => renders.get(id) ?? renders.set(id, {}).get(id);
+
+  // 회사 Claude 키로 생성 → 실패·키 없음이면 입력 문구로 대체. 광고 표현 검수 경고를 함께 돌려준다.
+  async function generateWithKey(cid, { ai, kind, label, generate, offline, entries }) {
+    const company = loadCompany(cid);
+    const warnings = [];
+    let out;
+    const key = ai ? getKey(cid, 'anthropic') : null;
+    if (ai && !key) warnings.push(`Claude API 키가 등록되지 않아 입력 문구로 ${label}을 만들었습니다 (설정 → API 키)`);
+    if (key) {
+      const t = Date.now();
+      try {
+        out = await generate({ apiKey: key.apiKey, model: key.meta.textModel, voice: { brandName: company.name, tone: company.brand.tone } });
+        logUsage(cid, 'anthropic', kind, true, Date.now() - t);
+        warnings.push(...(out.warnings ?? []));
+      } catch (err) {
+        logUsage(cid, 'anthropic', kind, false, Date.now() - t);
+        warnings.push(`AI ${label} 생성 실패 → 입력 문구로 대체: ${err.message}`);
+      }
+    }
+    out ??= offline();
+    const review = reviewTexts(entries(out), { forbidden: company.brand.forbidden });
+    warnings.push(...review.map(formatHit));
+    return { ...out, warnings, review };
+  }
+
+  // 결과물에 AI 생성 표시(메타데이터)를 넣는다
+  const labelAll = (files) => files.forEach((f) => labelPng(f));
   const logoPath = (company) => (company.logoFile ? path.join(companyDir(company.id), company.logoFile) : undefined);
 
   // ── 공개 라우트 ──
@@ -188,7 +259,7 @@ export function createApp({
       const keys = Object.fromEntries(
         Object.keys(PROVIDERS).map((p) => {
           const row = q('SELECT last4, meta, updated_at FROM api_keys WHERE company_id = ? AND provider = ?').get(s.companyId, p);
-          return [p, row ? { last4: row.last4, ...parse(row.meta), updatedAt: row.updated_at } : null];
+          return [p, row ? { last4: row.last4, ...effectiveMeta(p, parse(row.meta)), updatedAt: row.updated_at } : null];
         }),
       );
       return {
@@ -296,7 +367,7 @@ export function createApp({
       getCampaign(s.companyId, id);
       const facts = factsFor(loadCompany(s.companyId), (await readJson(req)).facts);
       // 팩트가 바뀌면 이전 카피·렌더는 무효
-      q('UPDATE campaigns SET title = ?, facts = ?, copy = NULL, updated_at = ? WHERE id = ? AND company_id = ?').run(facts.title.replace(/\n/g, ' '), json(facts), now(), id, s.companyId);
+      q('UPDATE campaigns SET title = ?, facts = ?, copy = NULL, ad_copy = NULL, detail = NULL, updated_at = ? WHERE id = ? AND company_id = ?').run(facts.title.replace(/\n/g, ' '), json(facts), now(), id, s.companyId);
       renders.delete(id);
       return { body: campaignView(getCampaign(s.companyId, id)) };
     },
@@ -312,29 +383,87 @@ export function createApp({
     // 카피: 회사 Claude 키로 3안. 키가 없거나 실패하면 입력 문구로 대체하고 이유를 알린다.
     'POST /api/campaigns/:id/copy': async (req, s, res, { id }) => {
       const c = getCampaign(s.companyId, id);
-      const company = loadCompany(s.companyId);
       const { ai = true } = await readJson(req);
-      const warnings = [];
-      let copy;
-      const key = ai ? getKey(s.companyId, 'anthropic') : null;
-      if (ai && !key) warnings.push('Claude API 키가 등록되지 않아 입력 문구로 만들었습니다 (설정 → API 키)');
-      if (key) {
-        const t = Date.now();
-        try {
-          copy = await copyGenerator(c.facts, { apiKey: key.apiKey, model: key.meta.textModel, voice: { brandName: company.name, tone: company.brand.tone } });
-          logUsage(s.companyId, 'anthropic', 'copy', true, Date.now() - t);
-          warnings.push(...(copy.warnings ?? []));
-        } catch (err) {
-          logUsage(s.companyId, 'anthropic', 'copy', false, Date.now() - t);
-          warnings.push(`AI 카피 생성 실패 → 입력 문구로 대체: ${err.message}`);
-        }
+      const copy = await generateWithKey(s.companyId, {
+        ai,
+        kind: 'copy',
+        label: '카피',
+        generate: (opts) => copyGenerator(c.facts, opts),
+        offline: () => offlineCopy(c.facts),
+        entries: copyEntries,
+      });
+      q('UPDATE campaigns SET copy = ?, updated_at = ? WHERE id = ?').run(json(copy), now(), id);
+      if (renders.get(id)) delete renders.get(id).cards;
+      return { body: { ...campaignView(getCampaign(s.companyId, id)), warnings: copy.warnings } };
+    },
+
+    // 인스타 광고 문구 3안
+    'POST /api/campaigns/:id/ads/copy': async (req, s, res, { id }) => {
+      const c = getCampaign(s.companyId, id);
+      const { ai = true } = await readJson(req);
+      const adCopy = await generateWithKey(s.companyId, {
+        ai,
+        kind: 'ads',
+        label: '광고 문구',
+        generate: (opts) => adGenerator(c.facts, opts),
+        offline: () => offlineAdCopy(c.facts),
+        entries: adEntries,
+      });
+      q('UPDATE campaigns SET ad_copy = ?, updated_at = ? WHERE id = ?').run(json(adCopy), now(), id);
+      if (renders.get(id)) delete renders.get(id).ads;
+      return { body: { ...campaignView(getCampaign(s.companyId, id)), warnings: adCopy.warnings } };
+    },
+
+    // 인스타 광고 이미지 1:1 · 4:5 · 9:16
+    'POST /api/campaigns/:id/ads/render': async (req, s, res, { id }) => {
+      const c = getCampaign(s.companyId, id);
+      const company = loadCompany(s.companyId);
+      const b = await readJson(req);
+      const adCopy = c.adCopy ?? offlineAdCopy(c.facts);
+      const variant = Math.min(Math.max(Number(b.variant) || 0, 0), adCopy.ads.length - 1);
+      const template = TEMPLATE_NAMES.includes(b.template) ? b.template : 'bold';
+      const dir = path.join(campaignDir(s.companyId, id), 'ads');
+      fs.rmSync(dir, { recursive: true, force: true });
+      const coverImage = c.coverFile ? path.join(campaignDir(s.companyId, id), c.coverFile) : undefined;
+      const files = await renderAdImages(adCopy.ads[variant], c.facts, brandForEngine(company), dir, template, { coverImage, logo: logoPath(company), aiBadge: company.brand.aiBadge });
+      labelAll(Object.values(files));
+      renderState(id).ads = { variant, dir, files: Object.fromEntries(Object.entries(files).map(([k, f]) => [k, path.basename(f)])) };
+      return { body: campaignView(c) };
+    },
+
+    // 상세페이지 6블록 문안
+    'POST /api/campaigns/:id/detail/copy': async (req, s, res, { id }) => {
+      const c = getCampaign(s.companyId, id);
+      const { ai = true } = await readJson(req);
+      const detail = await generateWithKey(s.companyId, {
+        ai,
+        kind: 'detail',
+        label: '상세페이지',
+        generate: (opts) => detailGenerator(c.facts, opts),
+        offline: () => offlineDetail(c.facts),
+        entries: detailEntries,
+      });
+      q('UPDATE campaigns SET detail = ?, updated_at = ? WHERE id = ?').run(json(detail), now(), id);
+      if (renders.get(id)) delete renders.get(id).detail;
+      return { body: { ...campaignView(getCampaign(s.companyId, id)), warnings: detail.warnings } };
+    },
+
+    'POST /api/campaigns/:id/detail/render': async (req, s, res, { id }) => {
+      const c = getCampaign(s.companyId, id);
+      const company = loadCompany(s.companyId);
+      const detail = c.detail ?? offlineDetail(c.facts);
+      const dir = path.join(campaignDir(s.companyId, id), 'detail');
+      fs.rmSync(dir, { recursive: true, force: true });
+      const coverImage = c.coverFile ? path.join(campaignDir(s.companyId, id), c.coverFile) : undefined;
+      let files;
+      try {
+        files = await renderDetailPage(detail, c.facts, brandForEngine(company), dir, { coverImage, logo: logoPath(company), aiBadge: company.brand.aiBadge });
+      } catch (err) {
+        throw new HttpError(422, err.message);
       }
-      copy ??= offlineCopy(c.facts);
-      const forbidden = findForbidden(copy, company.brand.forbidden);
-      for (const f of forbidden) warnings.push(`금지 표현 "${f.word}" 포함: ${f.where.join(', ')}`);
-      q('UPDATE campaigns SET copy = ?, updated_at = ? WHERE id = ?').run(json({ ...copy, warnings }), now(), id);
-      renders.delete(id);
-      return { body: { ...campaignView(getCampaign(s.companyId, id)), warnings } };
+      labelAll(files);
+      renderState(id).detail = { dir, files: files.map((f) => path.basename(f)) };
+      return { body: campaignView(c) };
     },
 
     'POST /api/campaigns/:id/cover': async (req, s, res, { id }) => {
@@ -406,8 +535,9 @@ export function createApp({
       const dir = path.join(campaignDir(s.companyId, id), template);
       fs.rmSync(dir, { recursive: true, force: true });
       const coverImage = c.coverFile ? path.join(campaignDir(s.companyId, id), c.coverFile) : undefined;
-      const files = await renderCards(slides, brandForEngine(company), c.facts.handle, dir, template, { coverImage, logo: logoPath(company) });
-      renders.set(id, { template, variant, slides, dir, coverImage, handle: c.facts.handle, cards: files.map((f) => path.basename(f)), reel: { status: 'idle' } });
+      const files = await renderCards(slides, brandForEngine(company), c.facts.handle, dir, template, { coverImage, logo: logoPath(company), aiBadge: company.brand.aiBadge });
+      labelAll(files);
+      Object.assign(renderState(id), { template, variant, slides, dir, coverImage, handle: c.facts.handle, cards: files.map((f) => path.basename(f)), reel: { status: 'idle' } });
       return { body: campaignView(c) };
     },
 
@@ -415,14 +545,16 @@ export function createApp({
     'POST /api/campaigns/:id/reel': async (req, s, res, { id }) => {
       const c = getCampaign(s.companyId, id);
       const r = renders.get(id);
-      if (!r) throw new HttpError(409, '카드뉴스를 먼저 만드세요');
+      if (!r?.cards) throw new HttpError(409, '카드뉴스를 먼저 만드세요');
       if (['queued', 'rendering'].includes(r.reel.status)) return { status: 202, body: campaignView(c) };
       const brand = brandForEngine(loadCompany(s.companyId));
       r.reel = { status: 'queued' };
       reelQueue = reelQueue.then(async () => {
         r.reel = { status: 'rendering' };
         try {
-          await reelRenderer(r.slides, brand, r.handle, path.join(r.dir, 'reel.mp4'), { template: r.template, coverImage: r.coverImage, projectDir: path.join(r.dir, 'project') });
+          const out = path.join(r.dir, 'reel.mp4');
+          await reelRenderer(r.slides, brand, r.handle, out, { template: r.template, coverImage: r.coverImage, projectDir: path.join(r.dir, 'project') });
+          await labelMp4(out);
           r.reel = { status: 'done' };
         } catch (err) {
           r.reel = { status: 'error', error: err.message };
@@ -434,9 +566,14 @@ export function createApp({
     'GET /api/campaigns/:id/zip': async (req, s, res, { id }) => {
       const c = getCampaign(s.companyId, id);
       const r = renders.get(id);
-      if (!r) throw new HttpError(409, '카드뉴스를 먼저 만드세요');
+      if (!r?.cards) throw new HttpError(409, '카드뉴스를 먼저 만드세요');
       const copy = c.copy ?? offlineCopy(c.facts);
       const entries = {};
+      if (r.ads) {
+        for (const f of Object.values(r.ads.files)) entries[`인스타광고/${f}`] = [fs.readFileSync(path.join(r.ads.dir, f)), { level: 0 }];
+        entries['인스타광고/광고문구.md'] = Buffer.from(adCopyMarkdown(c.adCopy ?? offlineAdCopy(c.facts), r.ads.variant));
+      }
+      if (r.detail) for (const f of r.detail.files) entries[`상세페이지/${f}`] = [fs.readFileSync(path.join(r.detail.dir, f)), { level: 0 }];
       for (const f of r.cards) entries[`카드뉴스/${f}`] = [fs.readFileSync(path.join(r.dir, f)), { level: 0 }];
       entries['홍보카피.md'] = Buffer.from(copyToMarkdown(copy, c.facts));
       entries['팩트시트.json'] = Buffer.from(JSON.stringify(c.facts, null, 2));
@@ -452,10 +589,30 @@ export function createApp({
       res.end(zip);
     },
 
-    'GET /files/campaigns/:id/:template/:name': async (req, s, res, { id, template, name }) => {
+    'GET /files/campaigns/:id/:group/:name': async (req, s, res, { id, group, name }) => {
       getCampaign(s.companyId, id);
-      if (!TEMPLATE_NAMES.includes(template) || !FILE_RE.test(name)) throw new HttpError(404, '없는 파일');
-      sendFile(req, res, path.join(campaignDir(s.companyId, id), template, name));
+      if (!(TEMPLATE_NAMES.includes(group) || GROUPS.has(group)) || !FILE_RE.test(name)) throw new HttpError(404, '없는 파일');
+      sendFile(req, res, path.join(campaignDir(s.companyId, id), group, name));
+    },
+
+    // 자료(PDF·PPTX·DOCX) → 팩트 시트 초안 (저장하지 않음 — 사용자가 확인 후 저장)
+    'POST /api/import': async (req, s) => {
+      const ext = String(req.headers['x-file-ext'] ?? '').toLowerCase();
+      const type = IMPORT_TYPES[ext];
+      if (!type) throw new HttpError(400, 'PDF, PPTX, DOCX 자료만 올릴 수 있습니다');
+      const key = getKey(s.companyId, 'anthropic');
+      if (!key) throw new HttpError(400, '자료에서 초안을 만들려면 Claude API 키가 필요합니다 (설정 → API 키)');
+      const buf = await readBody(req, MAX_IMPORT_BYTES);
+      if (!buf.length) throw new HttpError(400, '빈 파일입니다');
+      const t = Date.now();
+      try {
+        const out = await importer(buf, type, { apiKey: key.apiKey, model: key.meta.textModel });
+        logUsage(s.companyId, 'anthropic', 'import', true, Date.now() - t);
+        return { body: out };
+      } catch (err) {
+        logUsage(s.companyId, 'anthropic', 'import', false, Date.now() - t);
+        throw new HttpError(422, err.message);
+      }
     },
   });
 

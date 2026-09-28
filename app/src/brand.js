@@ -13,8 +13,9 @@ export const COLOR_ROLES = ['primary', 'accent', 'dark', 'light', 'muted'];
 export const DEFAULT_BRAND = {
   colors: { primary: '#D95F00', accent: '#FFD23F', dark: '#1B1F3B', light: '#FFF8EC', muted: '#6B7090' },
   tone: '밝고 친절하게, 과장 없이 구체적으로',
-  forbidden: ['최고', '1위', '유일', '100%', '무조건', '보장'],
+  forbidden: [],
   hashtags: [],
+  aiBadge: true, // 결과물에 "AI 활용 제작" 표시(메타데이터 표시는 항상)
 };
 
 export function sanitizeProfile(raw = {}) {
@@ -42,23 +43,32 @@ export function sanitizeBrand(raw = {}) {
       tone: str(raw.tone, 100) || DEFAULT_BRAND.tone,
       forbidden: list(raw.forbidden ?? DEFAULT_BRAND.forbidden, 50, 30),
       hashtags: list(raw.hashtags, 15, 30).map((t) => t.replace(/[\s#]/g, '')),
+      aiBadge: raw.aiBadge === undefined ? DEFAULT_BRAND.aiBadge : Boolean(raw.aiBadge),
     },
     adjusted: fitted.changed.map((role) => ({ role, from: colors[role], to: fitted.colors[role] })),
   };
 }
 
-// 카피에서 회사가 금지한 표현을 찾는다(차단이 아니라 경고 — 최종 판단은 사용자)
-export function findForbidden(copy, forbidden) {
-  if (!forbidden?.length || !copy) return [];
-  const texts = [
-    ...(copy.variants ?? []).flatMap((v, i) => ['tag', 'title', 'subtitle', 'promise', 'cta'].map((k) => [`${i + 1}안 ${k}`, v[k]])),
+// 광고 표현 검수 대상 문장 모으기 (카피·광고 문구·상세페이지)
+export function copyEntries(copy) {
+  if (!copy) return [];
+  return [
+    ...(copy.variants ?? []).flatMap((v, i) => ['tag', 'title', 'subtitle', 'promise', 'cta'].map((k) => [`카피 ${i + 1}안 ${k}`, v[k]])),
     ...(copy.painPoints ?? []).map((p, i) => [`고민 ${i + 1}`, p]),
     ['캡션', copy.caption],
   ];
-  const hits = [];
-  for (const word of forbidden) {
-    const where = texts.filter(([, t]) => String(t ?? '').includes(word)).map(([w]) => w);
-    if (where.length) hits.push({ word, where });
-  }
-  return hits;
+}
+
+export function adEntries(adCopy) {
+  return (adCopy?.ads ?? []).flatMap((a, i) => ['primaryText', 'headline', 'description', 'overlay', 'overlaySub'].map((k) => [`광고 ${i + 1}안 ${k}`, a[k]]));
+}
+
+export function detailEntries(d) {
+  if (!d) return [];
+  return [
+    ...['hook', 'value', 'cta'].flatMap((k) => [[`상세 ${k} 제목`, d[k]?.title], [`상세 ${k} 본문`, d[k]?.body]]),
+    ...(d.features ?? []).flatMap((f, i) => [[`상세 특징${i + 1}`, `${f.title} ${f.body}`]]),
+    ...(d.proof?.items ?? []).map((t, i) => [`상세 근거${i + 1}`, t]),
+    ...(d.faq ?? []).map((f, i) => [`상세 FAQ${i + 1}`, `${f.q} ${f.a}`]),
+  ];
 }

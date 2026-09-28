@@ -111,7 +111,7 @@ npm run serve          # http://127.0.0.1:5173 (PORT, HOST 환경변수로 변�
 | AI 카피 | Claude가 3안·고민 포인트·인스타 캡션·해시태그 생성, 글자 수 한도 검증 |
 
 **검증**
-- `npm test` 38건 모두 통과 (웹 API 11건, 표지 사진 5건, AI 배경 5건, 카드 줄바꿈 1건, 캡션 사실 정보 2건 포함)
+- `npm test` 47건 모두 통과 (웹 API 11건, 표지 사진 5건, AI 배경 5건, 카드 줄바꿈 1건, 캡션 사실 정보 2건, 판매용 앱 포맷 엔진 9건 포함)
 - `hyperframes check`: 에러·경고 0건, 명도 대비 WCAG AA 41/41 통과
 
 샘플은 `samples/`에 있습니다.
@@ -176,7 +176,7 @@ poc/
 │  └─ server.js        웹 서버 (node:http · API · 정적 파일 · ZIP)
 ├─ reel/               HyperFrames 프로젝트 (index.html·compositions/는 매번 자동 생성)
 ├─ public/             웹 화면 (index.html · app.js · style.css)
-├─ test/               node:test 테스트 38건
+├─ test/               node:test 테스트 47건
 └─ samples/            결과 샘플
 ```
 

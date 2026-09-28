@@ -3,7 +3,8 @@ const $ = (sel) => document.querySelector(sel);
 const LIST_FIELDS = ['painPoints', 'curriculum', 'benefits'];
 const COLOR_LABELS = { primary: '포인트', accent: '강조', dark: '진한 색', light: '밝은 바탕', muted: '보조 글자' };
 
-const state = { me: null, meta: null, campaign: null, variant: 0, template: 'bold', seq: 0 };
+const state = { me: null, meta: null, campaign: null, variant: 0, adVariant: 0, template: 'bold', seq: 0 };
+const AD_LABELS = { square: '1:1 피드', portrait: '4:5 피드', story: '9:16 스토리' };
 
 async function api(path, { method = 'GET', body, headers } = {}) {
   const raw = body instanceof Blob;
@@ -180,15 +181,18 @@ async function openEditor(id) {
     fillFacts(state.campaign.facts);
   }
   state.variant = state.campaign?.render?.variant ?? 0;
+  state.adVariant = state.campaign?.ads?.variant ?? 0;
   state.template = state.campaign?.render?.template ?? 'bold';
   renderEditor();
+  // 서버가 다시 시작돼 렌더 결과가 없으면 카드뉴스를 바로 다시 만든다(1초 안팎)
+  if (state.campaign && !state.campaign.render) await renderCards();
 }
 
 function renderEditor() {
   const c = state.campaign;
   $('#deleteCampaign').hidden = !c;
   $('#editorEmpty').hidden = Boolean(c);
-  for (const b of ['#copyBlock', '#coverBlock', '#previewBlock']) $(b).hidden = !c;
+  for (const b of ['#copyBlock', '#coverBlock', '#previewBlock', '#adsBlock', '#detailBlock']) $(b).hidden = !c;
   $('#reelBlock').hidden = !c?.render;
   if (!c) return;
 
@@ -235,11 +239,14 @@ function renderEditor() {
         if (state.template === t.name) return;
         state.template = t.name;
         renderEditor();
-        renderCards();
+        renderCards().then(() => state.campaign?.ads && renderAdImages());
       });
       return b;
     }),
   );
+  renderAds(c);
+  renderDetail(c);
+
   const r = c.render;
   if (r) {
     $('#cards').replaceChildren(
@@ -248,6 +255,69 @@ function renderEditor() {
     $('#zip').href = `/api/campaigns/${c.id}/zip`;
     setReel(r.reel);
   } else $('#cards').replaceChildren();
+}
+
+const sourceLabel = (x) => (x ? (x.source === 'offline' ? '입력 문구 기반' : `AI 생성 (${x.source.replace('ai:', '')})`) : '');
+function showWarnings(sel, warnings) {
+  $(sel).hidden = !warnings?.length;
+  $(sel).replaceChildren(...(warnings ?? []).map((w) => el('li', { textContent: w })));
+}
+
+function renderAds(c) {
+  const a = c.adCopy;
+  $('#adSource').textContent = sourceLabel(a);
+  $('#adVariants').replaceChildren(
+    ...(a?.ads ?? []).map((ad, i) => {
+      const b = el(
+        'button',
+        { type: 'button', className: 'variant' },
+        el('div', { className: 'angle', textContent: `${i + 1}안 · ${ad.angle}` }),
+        el('div', { className: 'title', textContent: ad.overlay }),
+        el('div', { className: 'sub', textContent: `${ad.overlaySub} · ${ad.headline}` }),
+      );
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(i === state.adVariant));
+      b.addEventListener('click', () => {
+        if (state.adVariant === i) return;
+        state.adVariant = i;
+        renderAds(state.campaign);
+        renderAdImages();
+      });
+      return b;
+    }),
+  );
+  showWarnings('#adWarnings', a?.warnings);
+  const ad = a?.ads?.[state.adVariant];
+  $('#adDetail').hidden = !ad;
+  if (ad) {
+    $('#adPrimary').textContent = ad.primaryText;
+    $('#adHeadline').textContent = ad.headline;
+    $('#adDescription').textContent = ad.description;
+  }
+  const imgs = c.ads?.images;
+  $('#adImages').replaceChildren(
+    ...(imgs ? Object.entries(imgs).map(([k, url]) => el('figure', {}, el('a', { href: url, target: '_blank', rel: 'noopener' }, el('img', { src: `${url}?t=${Date.now()}`, alt: `인스타 광고 ${AD_LABELS[k]}` })), el('figcaption', { textContent: AD_LABELS[k] }))) : []),
+  );
+}
+
+function renderDetail(c) {
+  $('#detailSource').textContent = sourceLabel(c.detail);
+  showWarnings('#detailWarnings', c.detail?.warnings);
+  $('#detailImages').hidden = !c.detailImages;
+  $('#detailImages').replaceChildren(...(c.detailImages ?? []).map((url, i) => el('img', { src: `${url}?t=${Date.now()}`, alt: `상세페이지 ${i + 1}블록` })));
+}
+
+async function renderAdImages() {
+  const c = state.campaign;
+  $('#adImages').classList.add('loading');
+  try {
+    state.campaign = await api(`/api/campaigns/${c.id}/ads/render`, { method: 'POST', body: { variant: state.adVariant, template: state.template } });
+    renderAds(state.campaign);
+  } catch (err) {
+    showAlert(err.message, 'error');
+  } finally {
+    $('#adImages').classList.remove('loading');
+  }
 }
 
 async function renderCards() {
@@ -274,6 +344,7 @@ $('#facts').addEventListener('submit', (e) => {
     const body = { facts: readFacts() };
     const c = state.campaign ? await api(`/api/campaigns/${state.campaign.id}`, { method: 'PUT', body }) : await api('/api/campaigns', { method: 'POST', body });
     const isNew = !state.campaign;
+    document.querySelectorAll('#facts .missing').forEach((l) => l.classList.remove('missing'));
     state.campaign = c;
     if (isNew) history.replaceState(null, '', `#/campaigns/${c.id}`);
     renderEditor();
@@ -296,6 +367,68 @@ $('#makeCopy').addEventListener('click', () =>
     await renderCards();
   }),
 );
+
+$('#makeAds').addEventListener('click', () =>
+  guarded($('#makeAds'), $('#useAi').checked ? 'Claude가 작성 중…' : '준비 중…', async () => {
+    state.campaign = await api(`/api/campaigns/${state.campaign.id}/ads/copy`, { method: 'POST', body: { ai: $('#useAi').checked } });
+    state.adVariant = 0;
+    renderAds(state.campaign);
+    await renderAdImages();
+  }),
+);
+
+$('#copyAdText').addEventListener('click', async () => {
+  const ad = state.campaign?.adCopy?.ads?.[state.adVariant];
+  if (!ad) return;
+  try {
+    await navigator.clipboard.writeText(`${ad.primaryText}\n\n제목: ${ad.headline}\n설명: ${ad.description}`);
+    $('#copyAdText').textContent = '복사됨';
+  } catch {
+    $('#copyAdText').textContent = '직접 선택해 복사하세요';
+  }
+  setTimeout(() => ($('#copyAdText').textContent = '광고 문구 복사'), 1500);
+});
+
+$('#makeDetail').addEventListener('click', () =>
+  guarded($('#makeDetail'), $('#useAi').checked ? 'Claude가 작성 중…' : '준비 중…', async () => {
+    const id = state.campaign.id;
+    state.campaign = await api(`/api/campaigns/${id}/detail/copy`, { method: 'POST', body: { ai: $('#useAi').checked } });
+    renderDetail(state.campaign);
+    $('#detailImages').classList.add('loading');
+    try {
+      state.campaign = await api(`/api/campaigns/${id}/detail/render`, { method: 'POST', body: {} });
+      renderDetail(state.campaign);
+    } finally {
+      $('#detailImages').classList.remove('loading');
+    }
+  }),
+);
+
+// 자료 → 팩트 시트 초안: 폼에 채우기만 하고 저장은 사용자가 확인 후
+const FIELD_LABELS = { tag: '태그', title: '제목', subtitle: '부제', instructor: '강사명', target: '추천 대상', painPoints: '고객 고민', promise: '약속', curriculum: '커리큘럼', benefits: '혜택', date: '일시', place: '장소', price: '수강료', cta: '신청 안내' };
+$('#importFile').addEventListener('change', async () => {
+  const file = $('#importFile').files[0];
+  if (!file) return;
+  const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? '').toLowerCase();
+  const status = $('#importStatus');
+  status.className = 'status';
+  status.textContent = '자료를 읽는 중… (30초 안팎)';
+  showWarnings('#importNotes', []);
+  try {
+    const r = await api('/api/import', { method: 'POST', body: file, headers: { 'x-file-ext': ext, 'content-type': 'application/octet-stream' } });
+    const keep = readFacts();
+    fillFacts({ ...r.facts, handle: keep.handle, hashtags: keep.hashtags });
+    for (const input of $('#facts').elements) input.closest?.('label')?.classList.toggle('missing', r.missing.includes(input.name));
+    status.className = 'status ok';
+    status.textContent = `초안을 채웠습니다. 내용을 확인하고 저장하세요.${r.missing.length ? ` 빈 항목: ${r.missing.map((k) => FIELD_LABELS[k] ?? k).join(', ')}` : ''}`;
+    showWarnings('#importNotes', r.notes);
+  } catch (err) {
+    status.className = 'status error';
+    status.textContent = err.message;
+  } finally {
+    $('#importFile').value = '';
+  }
+});
 
 $('#cover').addEventListener('change', async () => {
   const file = $('#cover').files[0];
@@ -378,6 +511,7 @@ async function openSettings() {
   bf.tone.value = company.brand.tone;
   bf.forbidden.value = company.brand.forbidden.join(', ');
   bf.hashtags.value = company.brand.hashtags.join(', ');
+  bf.aiBadge.checked = company.brand.aiBadge !== false;
   $('#brandAdjusted').hidden = true;
   $('#logoBox').hidden = !company.hasLogo;
   if (company.hasLogo) $('#logoImg').src = `/api/company/logo?t=${Date.now()}`;
@@ -406,7 +540,7 @@ async function openSettings() {
   );
 
   const usage = await api('/api/usage');
-  const KIND = { copy: '카피', image: 'AI 배경', key_test: '키 확인' };
+  const KIND = { copy: '카피', ads: '광고 문구', detail: '상세페이지', import: '자료 가져오기', image: 'AI 배경', key_test: '키 확인' };
   $('#usage').replaceChildren(
     el('tr', {}, el('th', { textContent: '공급자' }), el('th', { textContent: '작업' }), el('th', { textContent: '성공' }), el('th', { textContent: '전체' })),
     ...usage.rows.map((r) => el('tr', {}, el('td', { textContent: r.provider }), el('td', { textContent: KIND[r.kind] ?? r.kind }), el('td', { textContent: r.ok }), el('td', { textContent: r.total }))),
@@ -429,7 +563,7 @@ $('#brandForm').addEventListener('submit', (e) => {
   const f = $('#brandForm');
   guarded(f.querySelector('button[type=submit]'), '저장 중…', async () => {
     const colors = Object.fromEntries(Object.keys(COLOR_LABELS).map((r) => [r, f[`c_${r}`].value]));
-    const { adjusted } = await api('/api/company/brand', { method: 'PUT', body: { colors, tone: f.tone.value, forbidden: f.forbidden.value, hashtags: f.hashtags.value } });
+    const { adjusted } = await api('/api/company/brand', { method: 'PUT', body: { colors, tone: f.tone.value, forbidden: f.forbidden.value, hashtags: f.hashtags.value, aiBadge: f.aiBadge.checked } });
     await openSettings();
     const box = $('#brandAdjusted');
     box.hidden = !adjusted.length;

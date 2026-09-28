@@ -3,7 +3,7 @@
 // API 키가 없거나 호출이 실패하면 브리프 문구로 대체(offlineCopy)한다.
 import Anthropic from '@anthropic-ai/sdk';
 
-export const DEFAULT_MODEL = 'claude-opus-5';
+export const DEFAULT_MODEL = 'claude-opus-5-5';
 export const VARIANT_COUNT = 3;
 
 // 카드·릴스 레이아웃에 들어가는 글자 수 한도(공백 포함). 넘치면 줄바꿈이 깨진다.
@@ -101,8 +101,11 @@ export function checkCaption(caption, brief) {
   const label = /(일시|날짜|장소|수강료|가격|강사)\s*[:：]/.exec(body);
   if (label) errors.push(`사실 정보를 직접 씀: "${label[0]}"`);
   const known = JSON.stringify(brief);
-  for (const num of body.match(/\d[\d,.:~]*/g) ?? []) {
-    const core = num.replace(/[,.:~]+$/, '');
+  for (const m of body.matchAll(/\d[\d,.:~]*/g)) {
+    const core = m[0].replace(/[,.:~]+$/, '');
+    // 한 자리 순서·개수(3가지, 2단계)는 허용. 단 %·배·명·위·원 같은 단위가 붙으면 주장이므로 검사
+    const unit = body.slice(m.index + m[0].length).trimStart()[0] ?? '';
+    if (/^\d$/.test(core) && !/[%배명위만천원점]/.test(unit)) continue;
     if (!known.includes(core)) errors.push(`브리프에 없는 숫자: "${core}"`);
   }
   return errors;
@@ -113,38 +116,43 @@ export const fillCaption = (caption, brief) => String(caption).replace(FACT_TOKE
 // 고객이 등록한 API 키로 클라이언트를 만든다(판매용 앱: 키는 서버에서만 복호화해 넘긴다)
 export const anthropicClient = (apiKey) => new Anthropic({ apiKey });
 
-export async function generateCopy(brief, { client = new Anthropic(), model = process.env.PROMO_MODEL || DEFAULT_MODEL, voice = DEFAULT_VOICE } = {}) {
+// 공통 Claude 호출: 구조화 출력(JSON 스키마) + 거절 시 서버측 폴백 + 적응형 사고.
+// content는 문자열 또는 콘텐츠 블록 배열(PDF document 블록 등). 반환: { data, model }
+export async function structuredCall({ client, model, system, content, schema, effort = 'medium', maxTokens = 16000 }) {
   const response = await client.beta.messages.create({
     model,
-    max_tokens: 16000,
+    max_tokens: maxTokens,
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
     thinking: { type: 'adaptive' },
-    output_config: { effort: 'medium', format: { type: 'json_schema', schema: COPY_SCHEMA } },
-    system: systemPrompt(voice),
-    messages: [
-      {
-        role: 'user',
-        content: `다음 강의 브리프로 홍보 카피를 작성해 주세요.\n\n${JSON.stringify(briefForPrompt(brief), null, 2)}`,
-      },
-    ],
+    output_config: { effort, format: { type: 'json_schema', schema } },
+    system,
+    messages: [{ role: 'user', content }],
   });
-
   if (response.stop_reason === 'refusal') {
     throw new Error(`Claude가 요청을 거절했습니다 (${response.stop_details?.category ?? '사유 미상'})`);
   }
   if (response.stop_reason === 'max_tokens') throw new Error('응답이 max_tokens에서 잘렸습니다');
-
   const text = response.content
     .filter((b) => b.type === 'text')
     .map((b) => b.text)
     .join('');
-  let copy;
   try {
-    copy = JSON.parse(text);
+    return { data: JSON.parse(text), model: response.model };
   } catch {
     throw new Error('AI 응답을 JSON으로 해석하지 못했습니다');
   }
+}
+
+export async function generateCopy(brief, { client = new Anthropic(), model = process.env.PROMO_MODEL || DEFAULT_MODEL, voice = DEFAULT_VOICE } = {}) {
+  const { data: copy, model: used } = await structuredCall({
+    client,
+    model,
+    system: systemPrompt(voice),
+    schema: COPY_SCHEMA,
+    content: `다음 강의 브리프로 홍보 카피를 작성해 주세요.\n\n${JSON.stringify(briefForPrompt(brief), null, 2)}`,
+  });
+  const response = { model: used };
   const errors = validateCopy(copy);
   if (errors.length) throw new Error(`AI 카피가 레이아웃 한도를 넘었습니다: ${errors.join('; ')}`);
   // 캡션만 문제면 카피 3안은 살리고 캡션은 브리프 문구로 대체한다
