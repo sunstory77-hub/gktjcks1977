@@ -87,6 +87,7 @@ export function createApp({
   const masterKey = loadMasterKey(dataDir, env);
   const secureCookie = env.COOKIE_SECURE === '1';
   const trustProxy = env.TRUST_PROXY === '1';
+  const localMode = env.PROMO_LOCAL === '1';
   const reels = new Map(); // campaignId → { status, error } (진행 중 상태만 메모리에, 완료는 DB outputs)
   let reelQueue = Promise.resolve();
   const loginAttempts = new Map();
@@ -339,8 +340,9 @@ export function createApp({
         q('UPDATE invites SET accepted_at = ? WHERE id = ?').run(t, invite.id);
       } else {
         const companyId = crypto.randomUUID();
-        const trialEnd = new Date(Date.now() + PLANS.trial.days * 864e5).toISOString();
-        q("INSERT INTO companies (id, name, profile, brand, created_at, plan, plan_until) VALUES (?, ?, ?, ?, ?, 'trial', ?)").run(companyId, companyName, json({}), json(DEFAULT_BRAND), t, trialEnd);
+        // 내 PC 설치형(PROMO_LOCAL=1)은 요금제 한도 없이 쓴다
+        const [plan, until] = localMode ? ['pro', null] : ['trial', new Date(Date.now() + PLANS.trial.days * 864e5).toISOString()];
+        q('INSERT INTO companies (id, name, profile, brand, created_at, plan, plan_until) VALUES (?, ?, ?, ?, ?, ?, ?)').run(companyId, companyName, json({}), json(DEFAULT_BRAND), t, plan, until);
         q("INSERT INTO memberships (user_id, company_id, role) VALUES (?, ?, 'owner')").run(userId, companyId);
       }
       return { status: 201, body: { ok: true }, headers: { 'set-cookie': startSession(userId) } };

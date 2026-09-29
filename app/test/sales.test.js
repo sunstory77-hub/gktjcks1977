@@ -25,10 +25,10 @@ const servers = [];
 after(() => servers.forEach((s) => s.close()));
 
 const calls = { image: [], import: [] };
-async function start(dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sales-'))) {
+async function start(dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sales-')), env = {}) {
   const server = createApp({
     dataDir,
-    env: {},
+    env,
     keyTester: async (provider) => (provider === 'anthropic' ? { models: ['claude-opus-5-5'], textModel: 'claude-opus-5-5' } : { models: ['gemini-3.1-flash-image'], imageModel: 'gemini-3.1-flash-image' }),
     imageGenerator: async (f, dest, opts) => {
       calls.image.push({ ...opts, reference: opts.reference?.buffer.length, kind: f.kind });
@@ -313,4 +313,13 @@ test('운영: 보안 헤더, 상태 확인(/healthz), 약관·개인정보 페�
   const meta = await (await fetch(`${base}/api/meta`)).json();
   assert.deepEqual(meta.kinds.map((k) => k.name), ['edu', 'product', 'service']);
   assert.ok(meta.stylesByKind.product.includes('stage'));
+});
+
+test('내 PC 설치형(PROMO_LOCAL=1): 가입하면 요금제 한도·기간 없이 시작', async () => {
+  const { base } = await start(undefined, { PROMO_LOCAL: '1' });
+  const c = await signup(base, 'local@pc.co');
+  const me = await (await c.get('/api/me')).json();
+  assert.equal(me.plan.plan, 'pro');
+  assert.equal(me.plan.until, null);
+  assert.equal(me.plan.expired, false);
 });

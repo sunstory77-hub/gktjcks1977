@@ -27,6 +27,14 @@
 | 계정 | 비밀번호 변경(다른 기기 로그아웃), 재설정 링크, 탈퇴(소유자는 회사 데이터 전체 즉시 삭제) |
 | 운영 | `/healthz`, 보안 헤더(CSP·X-Frame-Options 등), 만료 세션 정리, 종료 신호 처리, 프록시 뒤 실제 IP(`TRUST_PROXY`) |
 
+## 내 PC 설치판 (Windows 10/11)
+
+저장소 첫 화면의 `홍보공장_실행.bat`을 더블클릭하면 된다(자세한 순서는 `windows/사용법.txt`).
+- 처음 실행: Node.js 22를 `runtime/`에 설치 없이 내려받고(SHA-256 확인) 부품 설치 → 서버 시작 → Edge/Chrome 전용 창(주소창 없음) → 바탕화면 바로가기
+- `PROMO_LOCAL=1`로 실행되어 요금제 한도 없이 시작, 데이터는 `%LOCALAPPDATA%\PromoFactory`
+- 끄기: `홍보공장_종료.bat`
+- 검증: 스크립트 구문(PowerShell 7 파서), Node 파일 목록 조회, Windows 대상 부품 설치(resvg·ffmpeg.exe), 압축본 → 새 폴더 설치 → 가입·카드·릴스까지 Linux에서 확인. **실제 Windows PC 실행은 미확인**
+
 ## 운영자 도구 (결제·메일 연동 전 수동 운영)
 
 ```bash
