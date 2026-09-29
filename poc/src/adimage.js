@@ -42,16 +42,19 @@ function adTree({ size, ad, facts, t, photo, logo, aiBadge }) {
 }
 
 // ad: { overlay, overlaySub }, 반환: 파일 경로 3개 { square, portrait, story }
-export async function renderAdImages(ad, facts, brand, outDir, template = 'bold', { coverImage, logo, aiBadge = false } = {}) {
+// coverImage: 피드(1:1·4:5)용 사진, storyImage: 스토리(9:16)용 사진(없으면 coverImage)
+export async function renderAdImages(ad, facts, brand, outDir, template = 'bold', { coverImage, storyImage, logo, aiBadge = false } = {}) {
   fs.mkdirSync(outDir, { recursive: true });
   const fonts = loadFonts();
   const t = resolveTheme(template, brand.colors);
-  const photo = coverImage ? { src: imageDataUri(coverImage), overlay: photoOverlay(brand.colors), colors: brand.colors } : undefined;
+  const photoOf = (file) => (file ? { src: imageDataUri(file), overlay: photoOverlay(brand.colors), colors: brand.colors } : undefined);
+  const feedPhoto = photoOf(coverImage);
+  const storyPhoto = storyImage && storyImage !== coverImage ? photoOf(storyImage) : feedPhoto;
   const logoUri = logo ? imageDataUri(logo) : undefined;
   const files = {};
   for (const size of Object.keys(AD_SIZES)) {
     const { w, h: H } = AD_SIZES[size];
-    const svg = await satori(adTree({ size, ad, facts, t, photo, logo: logoUri, aiBadge }), { width: w, height: H, fonts });
+    const svg = await satori(adTree({ size, ad, facts, t, photo: size === 'story' ? storyPhoto : feedPhoto, logo: logoUri, aiBadge }), { width: w, height: H, fonts });
     const file = path.join(outDir, `ad_${size}.png`);
     fs.writeFileSync(file, new Resvg(svg, { fitTo: { mode: 'width', value: w } }).render().asPng());
     files[size] = file;

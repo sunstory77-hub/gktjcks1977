@@ -3,9 +3,11 @@
 // 팩트 시트에 없는 숫자, 빈 사실을 가리키는 자리표시자, 라벨 뒤 직접 작성은 오류 → 해당 결과는 입력 문구로 대체.
 import Anthropic from '@anthropic-ai/sdk';
 import { DEFAULT_MODEL, DEFAULT_VOICE, structuredCall } from './ai.js';
+import { kindOf, ALL_TOKENS, FACT_LABEL_WORDS, fieldGuide } from './kinds.js';
 
 // ── 사실 자리표시자 ──
-const FACT_FIELDS = { 일시: 'date', 장소: 'place', 수강료: 'price', 강사: 'instructor', 신청: 'cta' };
+// 어느 업종의 자리표시자 이름을 써도 같은 필드로 채운다(교육: {{일시}}, 상품: {{기간}} …)
+const FACT_FIELDS = ALL_TOKENS;
 const TOKEN_RE = /\{\{([^}]+)\}\}/g;
 
 // 조사 짝: 받침 있을 때 / 없을 때
@@ -41,7 +43,7 @@ export function checkFactText(text, facts, where) {
     else if (!String(facts[FACT_FIELDS[name]] ?? '').trim()) errors.push(`${where}: 팩트 시트에 ${name} 값이 없는데 {{${name}}}를 씀`);
   }
   const body = t.replace(TOKEN_RE, '');
-  const label = /(일시|날짜|장소|수강료|가격|강사)\s*[:：]\s*(?!\s*\{\{)\S/.exec(t);
+  const label = new RegExp(`(${FACT_LABEL_WORDS.join('|')})\\s*[:：]\\s*(?!\\s*\\{\\{)\\S`).exec(t);
   if (label) errors.push(`${where}: 사실 정보를 직접 씀 "${label[0]}"`);
   const known = JSON.stringify(facts);
   for (const m of body.matchAll(/\d[\d,.:~]*/g)) {
@@ -56,12 +58,17 @@ export function checkFactText(text, facts, where) {
 
 const len = (s) => [...String(s ?? '')].length;
 const voiceLine = (voice) => `브랜드 "${voice.brandName || DEFAULT_VOICE.brandName}"의 톤(${voice.tone || DEFAULT_VOICE.tone})으로 한국어로 씁니다.`;
-const FACT_RULE = `사실 정보(일시·장소·수강료·강사명·신청 방법)는 직접 쓰지 말고 {{일시}} {{장소}} {{수강료}} {{강사}} {{신청}} 자리표시자로 씁니다. 팩트 시트에 값이 없는 항목의 자리표시자는 쓰지 않습니다. 숫자는 팩트 시트에 있는 숫자만 씁니다. 팩트 시트에 없는 사실(할인율, 수강생 수, 만족도, 순위, 후기)을 만들지 않습니다. "최고", "1위", "100%", "보장" 같은 근거 없는 최상급·보장 표현을 쓰지 않습니다.`;
+function factRule(facts) {
+  const k = kindOf(facts);
+  const toks = Object.entries(k.tokens);
+  const names = toks.map(([, f]) => k.labels[f] ?? '신청 방법').join('·');
+  return `사실 정보(${names})는 직접 쓰지 말고 ${toks.map(([n]) => `{{${n}}}`).join(' ')} 자리표시자로 씁니다. 팩트 시트에 값이 없는 항목의 자리표시자는 쓰지 않습니다. 숫자는 팩트 시트에 있는 숫자만 씁니다. 팩트 시트에 없는 사실(할인율, 고객 수, 판매량, 만족도, 순위, 후기, 효능)을 만들지 않습니다. "최고", "1위", "100%", "보장" 같은 근거 없는 최상급·보장 표현을 쓰지 않습니다.`;
+}
 const factsForPrompt = ({ _note, handle, hashtags, ...rest }) => JSON.stringify(rest, null, 2);
 
 // 자리표시자가 채워지면 몇 자가 되는지 알려 준다(글자 수 한도 계산용)
 const tokenLengths = (facts) =>
-  Object.entries(FACT_FIELDS)
+  Object.entries(kindOf(facts).tokens)
     .filter(([, f]) => String(facts[f] ?? '').trim())
     .map(([name, f]) => `{{${name}}}=${len(facts[f])}자`)
     .join(', ');
@@ -137,7 +144,8 @@ export async function generateAdCopy(facts, { client = new Anthropic(), model = 
 - 글자 수 한도(공백 포함, 자리표시자는 채워진 길이로 계산: ${tokenLengths(facts)}): primaryText ${PRIMARY_TARGET}자, headline ${AD_LIMITS.headline}자, description ${AD_LIMITS.description}자, overlay ${AD_LIMITS.overlay}자, overlaySub ${AD_LIMITS.overlaySub}자.
 - overlay는 이미지 위에 크게 들어가는 한 줄로, 짧고 강하게 씁니다(자리표시자 금지).
 - primaryText 첫 문장은 스크롤을 멈추게 하는 문제 제기로 시작합니다. 이모지는 primaryText에서 2개까지.
-- ${FACT_RULE}`,
+- ${factRule(facts)}
+${fieldGuide(facts)}`,
     content: `다음 팩트 시트로 인스타그램 광고 문구 3안을 써 주세요.\n\n${factsForPrompt(facts)}`,
   });
   return { source: `ai:${used}`, attempts, ads: data.ads.map((a) => fillAd(a, facts)) };
@@ -237,10 +245,11 @@ export async function generateDetail(facts, { client = new Anthropic(), model = 
 상세페이지는 6블록 순서로 독자의 질문에 답합니다: 문제공감(hook) → 핵심가치(value) → 특징 3개(features) → 근거(proof) → 자주 묻는 질문 3개(faq) → 신청(cta).
 규칙:
 - 글자 수 한도(공백 포함, 자리표시자는 채워진 길이로 계산: ${tokenLengths(facts)}): 블록 제목 ${L.title}자, 블록 본문 ${L.body}자, 특징 제목 ${L.featureTitle}자·본문 ${L.featureBody}자, 근거 항목 ${L.proofItem}자, 질문 ${L.q}자, 답 ${L.a}자.
-- 근거(proof)는 팩트 시트의 커리큘럼·혜택·강사 정보를 다시 쓴 것만 허용합니다. 후기·수치·수상 경력을 지어내지 않습니다.
+- 근거(proof)는 팩트 시트의 ${kindOf(facts).labels.curriculum}·${kindOf(facts).labels.benefits}·${kindOf(facts).labels.instructor} 정보를 다시 쓴 것만 허용합니다. 후기·수치·수상 경력을 지어내지 않습니다.
 - FAQ 답은 팩트 시트로 답할 수 있는 질문만 고르고, 사실은 자리표시자로 씁니다.
 - 쉬운 문장으로, 같은 장점을 반복하지 않습니다.
-- ${FACT_RULE}`,
+- ${factRule(facts)}
+${fieldGuide(facts)}`,
     content: `다음 팩트 시트로 상세페이지 6블록을 써 주세요.\n\n${factsForPrompt(facts)}`,
   });
   return { source: `ai:${used}`, attempts, ...mapDetail(data, (t) => fillFacts(t, facts)) };
@@ -249,19 +258,23 @@ export async function generateDetail(facts, { client = new Anthropic(), model = 
 // API 없이 팩트 시트만으로 만드는 상세페이지 (FAQ 답은 사실 그대로)
 export function offlineDetail(facts) {
   const title = String(facts.title).replace(/\n/g, ' ');
+  const k = kindOf(facts);
+  const L = k.labels;
+  const when = [facts.date, facts.place].filter(Boolean).join(' · ');
   const faq = [
-    ['언제, 어디서 진행하나요?', `${facts.date} · ${facts.place}`],
+    when && [k.faq.when, when],
     facts.target && ['누구에게 맞나요?', facts.target],
-    facts.price ? ['수강료는 얼마인가요?', facts.price] : ['어떻게 신청하나요?', facts.cta],
+    facts.price && [k.faq.price, facts.price],
   ].filter(Boolean);
-  while (faq.length < 3) faq.push(['어떻게 신청하나요?', facts.cta]);
+  const how = [k.faq.how, facts.cta];
+  while (faq.length < 3) faq.push(how);
   return {
     source: 'offline',
-    hook: { title: '이런 고민 있으신가요?', body: facts.painPoints.join('\n') },
+    hook: { title: k.heads.pain, body: facts.painPoints.join('\n') },
     value: { title, body: facts.promise || facts.subtitle || title },
-    features: facts.curriculum.slice(0, 3).map((c, i) => ({ title: `${i + 1}단계`, body: c })),
-    proof: { title: '이렇게 준비했습니다', items: [...facts.benefits, facts.instructor && `강사 ${facts.instructor}`].filter(Boolean).slice(0, 4) },
+    features: facts.curriculum.slice(0, 3).map((c, i) => ({ title: facts.kind === 'product' ? `특징 ${i + 1}` : `${i + 1}단계`, body: c })),
+    proof: { title: k.heads.promise, items: [...(facts.benefits ?? []), facts.instructor && `${L.instructor} ${facts.instructor}`].filter(Boolean).slice(0, 4) },
     faq: faq.slice(0, 3).map(([q, a]) => ({ q, a })),
-    cta: { title: '지금 신청하세요', body: facts.cta },
+    cta: { title: k.heads.cta, body: facts.cta },
   };
 }

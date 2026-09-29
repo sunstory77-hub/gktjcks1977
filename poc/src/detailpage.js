@@ -8,6 +8,7 @@ import { Resvg } from '@resvg/resvg-js';
 import { h, lines, loadFonts, aiBadgeEl } from './cards.js';
 import { photoOverlay, photoSurface } from './templates.js';
 import { imageDataUri } from './images.js';
+import { factRows, kindOf } from './kinds.js';
 
 export const DETAIL_W = 860;
 export const MAX_BLOCK_H = 5000;
@@ -87,7 +88,7 @@ function blocks(d, facts, c, { photo, logo, aiBadge }) {
   );
 
   // ⑥ 신청 (사실 정보는 팩트 시트 그대로)
-  const rows = [['일시', facts.date], ['장소', facts.place], ['수강료', facts.price], ['강사', facts.instructor]].filter(([, v]) => v);
+  const rows = [...factRows(facts), [kindOf(facts).labels.instructor, facts.instructor]].filter(([, v]) => v);
   const cta = block(
     dark.bg,
     eyebrow('JOIN', dark.em),

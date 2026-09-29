@@ -4,6 +4,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { unzipSync, strFromU8 } from 'fflate';
 import { DEFAULT_MODEL, structuredCall } from './ai.js';
+import { KINDS, DEFAULT_KIND, fieldGuide } from './kinds.js';
 
 export const IMPORT_TYPES = { '.pdf': 'pdf', '.pptx': 'pptx', '.docx': 'docx' };
 export const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
@@ -61,17 +62,22 @@ const IMPORT_SCHEMA = {
   },
 };
 
-const SYSTEM = `당신은 강의·행사 자료에서 홍보용 팩트 시트를 뽑는 편집자입니다.
+function systemFor(kind) {
+  const k = KINDS[kind] ?? KINDS[DEFAULT_KIND];
+  const L = k.labels;
+  return `당신은 ${k.subject} 자료에서 홍보용 팩트 시트를 뽑는 편집자입니다.
+${fieldGuide({ kind })}
 규칙:
-- 자료에 적힌 사실만 옮깁니다. 자료에 없는 일시·장소·수강료·강사명·신청 방법은 빈 문자열로 두고 missing에 넣습니다. 추측하지 않습니다.
+- 자료에 적힌 사실만 옮깁니다. 자료에 없는 ${L.date}·${L.place}·${L.price}·${L.instructor}·${L.cta}는 빈 문자열로 두고 missing에 넣습니다. 추측하지 않습니다.
 - title은 홍보용 제목으로 한 줄 10자 안팎 최대 2줄(줄바꿈 \\n), subtitle 20자, tag 12자 이내로 다듬습니다(내용은 자료 그대로).
-- painPoints(수강 대상의 고민)는 자료 내용에서 유추한 3개, curriculum은 핵심 순서 최대 4개, benefits는 수강생이 얻는 것 최대 3개. 각 22자 안팎.
+- painPoints(${L.painPoints})는 자료 내용에서 유추한 3개, curriculum(${L.curriculum})은 핵심 최대 4개, benefits(${L.benefits})는 최대 3개. 각 22자 안팎.
 - promise는 자료가 약속하는 결과 한 문장(26자 이내).
-- 여러 차시·회차가 섞여 있으면 가장 비중이 큰 회차를 고르고 notes에 적습니다.
+- 여러 회차·상품이 섞여 있으면 가장 비중이 큰 하나를 고르고 notes에 적습니다.
 - 날짜가 오늘(${new Date().toISOString().slice(0, 10)}) 이전이면 notes에 적습니다.`;
+}
 
 // buf: 파일 내용, type: 'pdf'|'pptx'|'docx' → { facts, missing, notes, source }
-export async function importFacts(buf, type, { client = new Anthropic(), model = process.env.PROMO_MODEL || DEFAULT_MODEL } = {}) {
+export async function importFacts(buf, type, { client = new Anthropic(), model = process.env.PROMO_MODEL || DEFAULT_MODEL, kind = DEFAULT_KIND } = {}) {
   if (buf.length > MAX_IMPORT_BYTES) throw new Error(`자료가 너무 큽니다 (최대 ${MAX_IMPORT_BYTES / 1024 / 1024}MB)`);
   let content;
   if (type === 'pdf') {
@@ -91,10 +97,12 @@ export async function importFacts(buf, type, { client = new Anthropic(), model =
     content = `다음 자료로 홍보용 팩트 시트를 만들어 주세요.\n\n<자료>\n${text}\n</자료>`;
   } else throw new Error('PDF, PPTX, DOCX만 올릴 수 있습니다');
 
-  const { data, model: used } = await structuredCall({ client, model, system: SYSTEM, content, schema: IMPORT_SCHEMA });
+  const { data, model: used } = await structuredCall({ client, model, system: systemFor(kind), content, schema: IMPORT_SCHEMA });
   // 비어 있는데 missing에 없으면 추가(모델이 빠뜨린 경우)
+  const required = new Set((KINDS[kind] ?? KINDS[DEFAULT_KIND]).required.concat(['date', 'place', 'price', 'instructor', 'cta']));
   const missing = new Set(data.missing);
   for (const k of FACT_KEYS) {
+    if (!required.has(k)) continue;
     const v = data.facts[k];
     if (Array.isArray(v) ? v.length === 0 : !String(v ?? '').trim()) missing.add(k);
   }

@@ -1,0 +1,18 @@
+# 홍보공장 운영 실행 예시
+# 1) .env 파일에 APP_MASTER_KEY=<openssl rand -base64 32 결과> 를 넣는다 (잃어버리면 저장된 API 키를 복호화할 수 없음)
+# 2) docker compose up -d
+# 3) HTTPS는 앞단 리버스 프록시(Caddy·Nginx·클라우드 로드밸런서)에서 처리하고 COOKIE_SECURE=1, TRUST_PROXY=1 로 둔다
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5180:5180"
+    environment:
+      APP_MASTER_KEY: ${APP_MASTER_KEY:?APP_MASTER_KEY를 .env에 설정하세요}
+      COOKIE_SECURE: "1"
+      TRUST_PROXY: "1"
+    volumes:
+      - promo-data:/data
+volumes:
+  promo-data:

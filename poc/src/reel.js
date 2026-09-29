@@ -40,7 +40,7 @@ function sceneMarkup(s) {
     case 'cover':
       return `${s.tag ? `<div class="tag anim">${esc(s.tag)}</div>` : ''}<h1 class="title anim">${br(s.title)}</h1>${
         s.subtitle ? `<p class="sub anim">${esc(s.subtitle)}</p>` : ''
-      }<p class="by anim">with ${esc(s.instructor)}</p>`;
+      }${s.by ?? s.instructor ? `<p class="by anim">${esc(s.by ?? `with ${s.instructor}`)}</p>` : ''}`;
     case 'curriculum':
       return `<h2 class="head anim">${esc(s.heading)}</h2><ul class="list">${list(s.items, (i) => i + 1)}</ul>`;
     case 'benefits':
@@ -48,11 +48,11 @@ function sceneMarkup(s) {
         s.price ? `<p class="price anim">${esc(s.price)}</p>` : ''
       }`;
     case 'cta':
-      return `<h2 class="head anim">${esc(s.heading)}</h2><dl class="info">${[
+      return `<h2 class="head anim">${esc(s.heading)}</h2><dl class="info">${(s.rows ?? [
         ['일시', s.date],
         ['장소', s.place],
         ['수강료', s.price],
-      ]
+      ])
         .filter(([, v]) => v)
         .map(([k, v]) => `<div class="row anim"><dt>${k}</dt><dd>${esc(v)}</dd></div>`)
         .join('')}</dl><div class="btn anim">${esc(s.cta)} →</div>`;
@@ -164,7 +164,7 @@ export function buildIndexHtml(scenes, theme, { bgmSrc } = {}) {
       .price { font-size: 64px; font-weight: 800; margin-top: 64px; }
       .info { display: flex; flex-direction: column; gap: 36px; }
       .row { display: flex; gap: 40px; font-size: 52px; }
-      .row dt { width: 180px; font-weight: 600; }
+      .row dt { width: 240px; font-weight: 600; }
       .row dd { font-weight: 700; }
       .btn { align-self: flex-start; margin-top: 96px; background: ${theme.btn.bg}; color: ${theme.btn.fg}; font-size: 56px; font-weight: 800; padding: 40px 64px; border-radius: 72px; }
     </style>

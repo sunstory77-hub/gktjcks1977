@@ -31,14 +31,27 @@
         <label>비밀번호 <input name="password" type="password" minlength="8" autocomplete="current-password" required /></label>
         <div id="signupFields" hidden>
           <label>이름 <input name="name" maxlength="40" /></label>
-          <label>회사명 <input name="companyName" maxlength="60" placeholder="예: 긍정하쌤 교육연구소" /></label>
+          <label id="companyField">회사명 <input name="companyName" maxlength="60" placeholder="예: 긍정하쌤 교육연구소" /></label>
+          <p id="inviteNote" class="note" hidden></p>
+          <label class="check agree"><input type="checkbox" name="agree" /> <span><a href="/terms.html" target="_blank" rel="noopener">이용약관</a>과 <a href="/privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>(생성 요청 시 AI 회사로의 국외 이전 포함)에 동의합니다 <span class="req">*</span></span></label>
         </div>
+        <p class="note" id="forgotNote">비밀번호를 잊으셨으면 운영자에게 재설정 링크를 요청하세요.</p>
         <div class="actions"><button type="submit" class="primary" id="authSubmit">로그인</button></div>
+      </form>
+    </section>
+
+    <!-- 비밀번호 재설정 -->
+    <section id="view-reset" class="panel form auth" hidden>
+      <h2>비밀번호 재설정</h2>
+      <form id="resetForm">
+        <label>새 비밀번호 (8자 이상) <input name="password" type="password" minlength="8" autocomplete="new-password" required /></label>
+        <div class="actions"><button type="submit" class="primary" id="resetSubmit">바꾸기</button></div>
       </form>
     </section>
 
     <!-- 캠페인 목록 -->
     <section id="view-campaigns" class="wrap" hidden>
+      <div id="planBanner" class="alert" hidden></div>
       <div class="panel" id="onboarding" hidden>
         <h2>시작 준비</h2>
         <ul class="checklist" id="checklist"></ul>
@@ -52,7 +65,7 @@
           </div>
         </div>
         <ul class="list" id="campaignList"></ul>
-        <p class="note" id="campaignEmpty" hidden>아직 캠페인이 없습니다. 강의·행사 1건의 정보를 넣으면 카드뉴스·릴스·카피가 함께 만들어집니다.</p>
+        <p class="note" id="campaignEmpty" hidden>아직 캠페인이 없습니다. 강의·행사, 상품, 서비스·매장 중 하나를 골라 정보를 넣으면 카드뉴스·광고·상세페이지·릴스가 함께 만들어집니다.</p>
       </div>
     </section>
 
@@ -63,9 +76,14 @@
           <h2>팩트 시트</h2>
           <a href="#/campaigns" class="ghost button small">목록</a>
         </div>
-        <p class="note">여기 입력한 일시·장소·수강료·커리큘럼·혜택은 AI가 바꾸지 않고 그대로 들어갑니다.</p>
+        <div class="kind-pick">
+          <span class="kind-label">업종</span>
+          <div class="seg" id="kinds" role="radiogroup" aria-label="업종"></div>
+          <input type="hidden" name="kind" value="edu" />
+        </div>
+        <p class="note" id="factsNote">여기 입력한 사실 정보는 AI가 바꾸지 않고 그대로 들어갑니다.</p>
         <div class="import-box">
-          <label class="file">자료로 채우기 (PDF·PPTX·DOCX · 20MB) — 강의안·안내문을 올리면 초안을 채웁니다
+          <label class="file">자료로 채우기 (PDF·PPTX·DOCX · 20MB) — 안내문·소개서·강의안을 올리면 초안을 채웁니다
             <input type="file" id="importFile" accept=".pdf,.pptx,.docx" />
           </label>
           <p id="importStatus" class="status" aria-live="polite"></p>
@@ -118,6 +136,7 @@
             <h2>① 카피 <small id="copySource"></small></h2>
             <div>
               <label class="check"><input type="checkbox" id="useAi" checked /> Claude로 3안</label>
+              <button type="button" class="ghost small" id="editCopy" hidden>선택안 고치기</button>
               <button type="button" class="primary" id="makeCopy">카피 만들기</button>
             </div>
           </div>
@@ -129,22 +148,22 @@
           </details>
         </div>
 
-        <div id="coverBlock" class="block" hidden>
-          <h2>② 표지 배경 (선택)</h2>
-          <div class="reel-controls">
-            <label class="file">사진 올리기 (JPG/PNG · 10MB)
-              <input type="file" id="cover" accept=".jpg,.jpeg,.png,image/jpeg,image/png" />
+        <div id="imageBlock" class="block" hidden>
+          <div class="panel-head">
+            <h2>② 이미지 <small id="imageCount"></small></h2>
+            <label class="file small-file">사진 올리기 (JPG/PNG · 10MB)
+              <input type="file" id="imageUpload" accept=".jpg,.jpeg,.png,image/jpeg,image/png" />
             </label>
-            <div class="ai-image">
-              <select id="imageStyle" aria-label="AI 배경 스타일"></select>
-              <button type="button" class="ghost small" id="makeImage">AI로 배경 만들기</button>
-            </div>
           </div>
-          <div id="coverPreview" class="cover-preview" hidden>
-            <img id="coverThumb" alt="표지 배경 미리보기" />
-            <button type="button" class="ghost small" id="coverRemove">배경 빼기</button>
-          </div>
-          <p class="note">인물 사진은 본인 동의를 받은 것만 사용하세요. AI 배경의 인물은 가상 인물입니다.</p>
+          <form id="genForm" class="gen-form form">
+            <label>AI 스타일 <select id="imageStyle"></select></label>
+            <label>비율 <select id="imageRatio"></select></label>
+            <label class="wide">추가 설명 (선택) <input id="imageExtra" maxlength="150" placeholder="예: 파스텔 톤, 봄 느낌, 창가 햇살" /></label>
+            <label class="wide">상품 사진 연출 (선택) <select id="imageRef"><option value="">사용 안 함</option></select></label>
+            <div class="gen-actions"><button type="submit" class="primary small" id="makeImage">AI 이미지 만들기</button> <span class="note">10초 안팎 · Gemini 키 사용</span></div>
+          </form>
+          <div id="gallery" class="gallery" aria-live="polite"></div>
+          <p class="note">세로 자리는 릴스·스토리 광고에, 피드 자리는 카드뉴스·피드 광고·상세페이지 표지에 쓰입니다(한쪽만 있으면 같은 사진). 인물 사진은 본인 동의를 받은 것만 쓰세요. AI 이미지의 인물은 가상 인물이며, 상품 사진 연출 결과는 모양·라벨이 실제와 같은지 꼭 확인하세요.</p>
         </div>
 
         <div id="previewBlock" class="block" hidden>
@@ -158,7 +177,7 @@
         <div id="adsBlock" class="block" hidden>
           <div class="panel-head">
             <h2>④ 인스타 광고 <small id="adSource"></small></h2>
-            <button type="button" class="primary" id="makeAds">광고 문구 만들기</button>
+            <div><button type="button" class="ghost small" id="editAds" hidden>선택안 고치기</button> <button type="button" class="primary" id="makeAds">광고 문구 만들기</button></div>
           </div>
           <div id="adVariants" class="variants" role="radiogroup"></div>
           <ul id="adWarnings" class="warnings" hidden></ul>
@@ -176,7 +195,7 @@
         <div id="detailBlock" class="block" hidden>
           <div class="panel-head">
             <h2>⑤ 상세페이지 <small>가로 860px · 6블록</small> <small id="detailSource"></small></h2>
-            <button type="button" class="primary" id="makeDetail">상세페이지 만들기</button>
+            <div><button type="button" class="ghost small" id="editDetail" hidden>문안 고치기</button> <button type="button" class="primary" id="makeDetail">상세페이지 만들기</button></div>
           </div>
           <ul id="detailWarnings" class="warnings" hidden></ul>
           <div id="detailImages" class="detail-images" aria-live="polite"></div>
@@ -195,8 +214,24 @@
       </section>
     </main>
 
+    <!-- 문안 직접 수정 -->
+    <dialog id="editDialog" aria-labelledby="editTitle">
+      <form id="editForm" class="form">
+        <div class="panel-head"><h2 id="editTitle">문안 고치기</h2></div>
+        <p class="note">글자 수는 카드·광고 이미지에 들어가는 한도입니다. 사실 정보(일시·가격 등)는 팩트 시트 값과 같게 써 주세요.</p>
+        <div id="editFields"></div>
+        <p id="editError" class="status error" aria-live="polite"></p>
+        <div class="actions"><button type="button" class="ghost" id="editCancel">취소</button><button type="submit" class="primary" id="editSave">저장하고 다시 만들기</button></div>
+      </form>
+    </dialog>
+
     <!-- 설정 -->
     <section id="view-settings" class="wrap" hidden>
+      <div class="panel" id="planPanel">
+        <div class="panel-head"><h2>요금제</h2><span id="roleNote" class="note"></span></div>
+        <div id="planBox"></div>
+      </div>
+
       <form id="companyForm" class="panel form">
         <div class="panel-head"><h2>회사 정보</h2><button type="submit" class="primary small">저장</button></div>
         <div class="row2">
@@ -241,9 +276,39 @@
         <div id="keyRows"></div>
       </div>
 
+      <div class="panel form" id="teamPanel">
+        <div class="panel-head"><h2>팀원</h2></div>
+        <ul class="list members" id="members"></ul>
+        <form id="inviteForm" class="invite-row">
+          <label>초대할 이메일 <input name="email" type="email" maxlength="80" required /></label>
+          <button type="submit" class="primary small">초대 링크 만들기</button>
+        </form>
+        <div id="inviteLink" class="alert" hidden></div>
+        <ul class="list" id="invites"></ul>
+        <p class="note">초대 링크는 7일 동안 한 번 쓸 수 있습니다. 메신저·메일로 직접 보내 주세요. 팀원은 캠페인을 만들고 고칠 수 있고, 회사 정보·브랜드·API 키·팀원 관리는 소유자만 할 수 있습니다.</p>
+      </div>
+
       <div class="panel">
         <h2>이번 달 사용량</h2>
         <table class="usage" id="usage"></table>
+      </div>
+
+      <div class="panel form">
+        <h2>계정</h2>
+        <form id="pwForm" class="invite-row">
+          <label>현재 비밀번호 <input name="current" type="password" autocomplete="current-password" required /></label>
+          <label>새 비밀번호 (8자 이상) <input name="next" type="password" minlength="8" autocomplete="new-password" required /></label>
+          <button type="submit" class="primary small">비밀번호 바꾸기</button>
+        </form>
+        <details class="danger">
+          <summary>탈퇴</summary>
+          <p class="note" id="deleteNote"></p>
+          <form id="deleteForm" class="invite-row">
+            <label>비밀번호 확인 <input name="password" type="password" autocomplete="current-password" required /></label>
+            <button type="submit" class="danger-btn small">탈퇴하고 데이터 삭제</button>
+          </form>
+        </details>
+        <p class="note"><a href="/terms.html" target="_blank" rel="noopener">이용약관</a> · <a href="/privacy.html" target="_blank" rel="noopener">개인정보처리방침</a></p>
       </div>
     </section>
 

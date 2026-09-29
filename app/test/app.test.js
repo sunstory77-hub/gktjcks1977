@@ -39,8 +39,10 @@ before(async () => {
       };
     },
     imageGenerator: async (f, dest, opts) => {
-      calls.image.push(opts);
-      makeImage(dest, { color: 'teal', size: '768x1376' });
+      calls.image.push({ ...opts, reference: opts.reference && opts.reference.buffer.length });
+      if (opts.extra === 'fail') throw new Error('이미지 생성 실패 (429): Quota exceeded');
+      makeImage(dest, { color: 'teal', size: opts.aspectRatio === '1:1' ? '800x800' : '768x1376' });
+      return { prompt: `prompt ${opts.style}` };
     },
     adGenerator: async (f, opts) => {
       calls.ads.push(opts);
@@ -85,7 +87,7 @@ function client() {
 
 async function signup(email, companyName = '테스트 회사') {
   const c = client();
-  const res = await c.post('/api/auth/signup', { email, password: 'password123', name: '담당자', companyName });
+  const res = await c.post('/api/auth/signup', { email, password: 'password123', name: '담당자', companyName, agree: true });
   assert.equal(res.status, 201);
   return c;
 }
@@ -95,8 +97,11 @@ test('가입·로그인·로그아웃: 중복 이메일 409, 틀린 비밀번호
   const c = await signup('owner@a.co', 'A교육');
   assert.deepEqual(await (await c.get('/api/session')).json(), { loggedIn: true });
   assert.equal((await c.get('/api/me')).status, 200);
-  assert.equal((await client().post('/api/auth/signup', { email: 'OWNER@a.co', password: 'password123', name: 'x', companyName: 'y' })).status, 409);
-  assert.equal((await client().post('/api/auth/signup', { email: 'x@a.co', password: 'short', name: 'x', companyName: 'y' })).status, 400);
+  assert.equal((await client().post('/api/auth/signup', { email: 'OWNER@a.co', password: 'password123', name: 'x', companyName: 'y', agree: true })).status, 409);
+  assert.equal((await client().post('/api/auth/signup', { email: 'x@a.co', password: 'short', name: 'x', companyName: 'y', agree: true })).status, 400);
+  const noAgree = await client().post('/api/auth/signup', { email: 'x@a.co', password: 'password123', name: 'x', companyName: 'y' });
+  assert.equal(noAgree.status, 400);
+  assert.match((await noAgree.json()).error, /이용약관/);
   assert.equal((await client().post('/api/auth/login', { email: 'owner@a.co', password: 'wrong-password' })).status, 401);
   await c.post('/api/auth/logout', {});
   assert.equal((await c.get('/api/me')).status, 401);
@@ -199,11 +204,11 @@ test('캠페인 흐름: 회사 키·톤으로 카피 → 금지 표현 경고 �
   assert.ok(r.warnings.some((w) => /"1위".*카피 2안 promise/.test(w)));
   assert.ok(r.warnings.some((w) => /회사 금지 표현.*카피 2안 promise/.test(w)));
 
-  // AI 표지: Gemini 키 없으면 400, 있으면 회사 키로 생성
-  assert.equal((await c.post(`/api/campaigns/${camp.id}/cover/generate`, { style: 'workspace' })).status, 400);
+  // AI 배경: Gemini 키 없으면 400, 있으면 회사 키로 생성
+  assert.equal((await c.post(`/api/campaigns/${camp.id}/images/generate`, { style: 'workspace' })).status, 400);
   await c.put('/api/keys/gemini', { apiKey: GEMINI_KEY });
-  assert.equal((await c.post(`/api/campaigns/${camp.id}/cover/generate`, { style: 'workspace' })).status, 200);
-  assert.deepEqual(calls.image.at(-1), { apiKey: GEMINI_KEY, model: 'gemini-3.1-flash-image', style: 'workspace' });
+  assert.equal((await c.post(`/api/campaigns/${camp.id}/images/generate`, { style: 'workspace' })).status, 201);
+  assert.deepEqual(calls.image.at(-1), { apiKey: GEMINI_KEY, model: 'gemini-3.1-flash-image', style: 'workspace', extra: '', aspectRatio: '9:16', reference: undefined });
 
   // 카드뉴스(실제 렌더) → 릴스(가짜) → ZIP
   r = await (await c.post(`/api/campaigns/${camp.id}/render`, { template: 'clean', variant: 2 })).json();

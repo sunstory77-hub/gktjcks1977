@@ -49,6 +49,33 @@ CREATE TABLE IF NOT EXISTS campaigns (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS campaigns_company ON campaigns(company_id, updated_at);
+CREATE TABLE IF NOT EXISTS images (
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES companies(id),
+  campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  source TEXT NOT NULL,    -- upload | ai
+  ratio TEXT,              -- AI 생성 비율(9:16·4:5·1:1), 업로드는 NULL
+  style TEXT,
+  prompt TEXT,
+  file TEXT NOT NULL,      -- 캠페인 폴더 기준 상대 경로
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS images_campaign ON images(campaign_id, created_at);
+CREATE TABLE IF NOT EXISTS invites (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  company_id TEXT NOT NULL REFERENCES companies(id),
+  email TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  accepted_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reset_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  expires_at TEXT NOT NULL,
+  used_at TEXT
+);
 CREATE TABLE IF NOT EXISTS usage_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   company_id TEXT NOT NULL,
@@ -60,10 +87,17 @@ CREATE TABLE IF NOT EXISTS usage_log (
 );
 `;
 
-// 기존 DB에 새 열을 더한다(5~8주: 인스타 광고 문구·상세페이지 문안)
+// 기존 DB에 새 열을 더한다
 const ADDED_COLUMNS = [
-  ['campaigns', 'ad_copy', 'TEXT'],
-  ['campaigns', 'detail', 'TEXT'],
+  ['campaigns', 'ad_copy', 'TEXT'], // 5~8주: 인스타 광고 문구
+  ['campaigns', 'detail', 'TEXT'], // 5~8주: 상세페이지 문안
+  ['campaigns', 'outputs', 'TEXT'], // 만든 결과물 목록(서버를 다시 켜도 유지)
+  ['campaigns', 'vertical_image', 'TEXT'], // 세로(9:16) 자리: 릴스·스토리 광고
+  ['campaigns', 'feed_image', 'TEXT'], // 피드 자리: 카드뉴스·피드 광고·상세페이지 표지
+  ['companies', 'plan', "TEXT NOT NULL DEFAULT 'trial'"],
+  ['companies', 'plan_until', 'TEXT'],
+  ['users', 'agreed_at', 'TEXT'], // 이용약관·개인정보처리방침 동의 시각
+  ['users', 'terms_version', 'TEXT'],
 ];
 
 export function openDb(file) {

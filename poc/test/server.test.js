@@ -6,6 +6,7 @@ import path from 'node:path';
 import { unzipSync, strFromU8 } from 'fflate';
 import { createApp, sanitizeBrief } from '../src/server.js';
 import { makeImage } from './helpers.js';
+import { IMAGE_STYLES } from '../src/imagegen.js';
 
 const brief = JSON.parse(fs.readFileSync(new URL('../brief.sample.json', import.meta.url)));
 let server, base, rendered, generated;
@@ -168,7 +169,7 @@ test('표지 사진: 업로드 → JPEG 정규화 → 미리보기·릴스에 �
 
 test('AI 배경: 생성 → imageId로 미리보기, 썸네일 제공, 스타일 검증, API 오류는 502', async () => {
   const meta = await (await fetch(base + '/api/meta')).json();
-  assert.deepEqual(meta.imageStyles.map((s) => s.name), ['classroom', 'workspace', 'abstract']);
+  assert.deepEqual(meta.imageStyles.map((s) => s.name), Object.keys(IMAGE_STYLES));
 
   const res = await post('/api/image/generate', { brief, style: 'workspace' });
   assert.equal(res.status, 200);

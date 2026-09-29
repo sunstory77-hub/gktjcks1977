@@ -2,6 +2,7 @@
 // 날짜·장소·가격·커리큘럼·혜택 같은 사실 정보는 AI에 맡기지 않고 브리프 값을 그대로 쓴다.
 // API 키가 없거나 호출이 실패하면 브리프 문구로 대체(offlineCopy)한다.
 import Anthropic from '@anthropic-ai/sdk';
+import { kindOf, FACT_LABEL_WORDS, fieldGuide } from './kinds.js';
 
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 export const VARIANT_COUNT = 3;
@@ -38,18 +39,20 @@ export const COPY_SCHEMA = {
 // 브랜드명·톤은 회사별로 다르다(판매용 앱). 기본값은 PoC 브랜드.
 export const DEFAULT_VOICE = { brandName: '긍정하쌤', tone: '밝고 긍정적, 과장 없이 구체적' };
 
-export function systemPrompt({ brandName, tone } = DEFAULT_VOICE) {
-  return `당신은 교육·강의·행사 홍보 전문 카피라이터입니다. 브랜드 "${brandName || DEFAULT_VOICE.brandName}"의 톤(${tone || DEFAULT_VOICE.tone})으로 한국어 카피를 씁니다.
+export function systemPrompt({ brandName, tone } = DEFAULT_VOICE, brief = {}) {
+  const k = kindOf(brief);
+  return `당신은 ${k.writer} 홍보 전문 카피라이터입니다. 브랜드 "${brandName || DEFAULT_VOICE.brandName}"의 톤(${tone || DEFAULT_VOICE.tone})으로 한국어 카피를 씁니다.
+${fieldGuide(brief)}
 
 규칙:
 - 카피 ${VARIANT_COUNT}안을 서로 다른 소구 포인트(angle)로 작성합니다.
 - 브리프에 없는 사실(날짜, 가격, 할인율, 수강생 수, 성과 수치, 기관명)을 만들지 않습니다.
 - 글자 수 한도(공백 포함)를 반드시 지킵니다. 카드뉴스 레이아웃에 들어가야 하기 때문입니다.
   tag ${LIMITS.tag}자, title 한 줄 ${LIMITS.titleLine}자 × 최대 ${LIMITS.titleLines}줄(줄바꿈은 \\n), subtitle ${LIMITS.subtitle}자, promise ${LIMITS.promise}자, cta ${LIMITS.cta}자, painPoints 각 ${LIMITS.painPoint}자.
-- painPoints는 수강 대상이 실제로 겪는 고민 정확히 3개입니다.
+- painPoints는 ${k.audience}이 실제로 겪는 고민 정확히 3개입니다.
 - hashtags는 '#' 없이 5~10개입니다.
 - 이모지는 caption에서만 쓸 수 있습니다.
-- caption에는 일시·장소·가격·강사명을 직접 쓰지 않습니다. 그 자리에 {{사실정보}} 한 줄을 정확히 한 번 넣으면 프로그램이 브리프 값으로 채웁니다.
+- caption에는 ${k.labels.date}·${k.labels.place}·${k.labels.price}·${k.labels.instructor}를 직접 쓰지 않습니다. 그 자리에 {{사실정보}} 한 줄을 정확히 한 번 넣으면 프로그램이 브리프 값으로 채웁니다.
 - caption에 숫자를 쓸 때는 브리프에 있는 숫자만 씁니다.`;
 }
 
@@ -83,11 +86,12 @@ export function validateCopy(copy) {
 export const FACT_TOKEN = '{{사실정보}}';
 
 export function factLines(brief) {
+  const L = kindOf(brief).labels;
   return [
-    `🗓 ${brief.date}`,
-    `📍 ${brief.place}`,
+    brief.date ? `🗓 ${brief.date}` : '',
+    brief.place ? `📍 ${brief.place}` : '',
     brief.price ? `💰 ${brief.price}` : '',
-    brief.instructor ? `🙋 강사 ${brief.instructor}` : '',
+    brief.instructor ? `🙋 ${L.instructor} ${brief.instructor}` : '',
   ].filter(Boolean);
 }
 
@@ -98,7 +102,7 @@ export function checkCaption(caption, brief) {
   const n = text.split(FACT_TOKEN).length - 1;
   if (n !== 1) errors.push(`${FACT_TOKEN} 자리표시자 ${n}회 (정확히 1회여야 함)`);
   const body = text.replaceAll(FACT_TOKEN, '');
-  const label = /(일시|날짜|장소|수강료|가격|강사)\s*[:：]/.exec(body);
+  const label = new RegExp(`(${FACT_LABEL_WORDS.join('|')})\\s*[:：]`).exec(body);
   if (label) errors.push(`사실 정보를 직접 씀: "${label[0]}"`);
   const known = JSON.stringify(brief);
   for (const m of body.matchAll(/\d[\d,.:~]*/g)) {
@@ -148,9 +152,9 @@ export async function generateCopy(brief, { client = new Anthropic(), model = pr
   const { data: copy, model: used } = await structuredCall({
     client,
     model,
-    system: systemPrompt(voice),
+    system: systemPrompt(voice, brief),
     schema: COPY_SCHEMA,
-    content: `다음 강의 브리프로 홍보 카피를 작성해 주세요.\n\n${JSON.stringify(briefForPrompt(brief), null, 2)}`,
+    content: `다음 ${kindOf(brief).subject} 브리프로 홍보 카피를 작성해 주세요.\n\n${JSON.stringify(briefForPrompt(brief), null, 2)}`,
   });
   const response = { model: used };
   const errors = validateCopy(copy);
@@ -170,7 +174,7 @@ export async function generateCopy(brief, { client = new Anthropic(), model = pr
 export function offlineCopy(brief) {
   // 브리프에 hashtags가 있으면 그것을 쓰고, 없으면 기본 태그를 쓴다.
   const base = brief.hashtags?.length ? brief.hashtags : ['AI활용', '업무자동화', '원데이클래스', '직장인공부'];
-  const tags = [...base, brief.instructor].map((t) => String(t).replace(/[\s#@]/g, ''));
+  const tags = [...base, brief.instructor].filter(Boolean).map((t) => String(t).replace(/[\s#@]/g, ''));
   return {
     source: 'offline',
     variants: [

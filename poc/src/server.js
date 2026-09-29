@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { zipSync } from 'fflate';
 import { buildSlides, validateBrief } from './content.js';
+import { KIND_NAMES, DEFAULT_KIND } from './kinds.js';
 import { renderCards } from './cards.js';
 import { renderReel } from './reel.js';
 import { TEMPLATE_NAMES, TEMPLATE_LABELS } from './templates.js';
@@ -46,6 +47,7 @@ const list = (v, maxItems, maxLen) =>
 
 export function sanitizeBrief(raw = {}) {
   const brief = {
+    kind: KIND_NAMES.includes(raw.kind) ? raw.kind : DEFAULT_KIND,
     tag: str(raw.tag, 30),
     title: str(raw.title, 60).split('\n').slice(0, 2).join('\n'),
     subtitle: str(raw.subtitle, 40),

@@ -91,16 +91,16 @@ function slideBody(s, t, photo) {
         s.tag ? h({ alignSelf: 'flex-start', backgroundColor: tag.bg, color: tag.fg, fontSize: 36, fontWeight: 700, padding: '14px 32px', borderRadius: 40, marginBottom: 48 }, s.tag) : [],
         lines(s.title, { fontSize: 112, fontWeight: 800, lineHeight: 1.15, letterSpacing: -4 }),
         s.subtitle ? h({ fontSize: 56, fontWeight: 700, color: sf.emphasis, marginTop: 40 }, s.subtitle) : [],
-        h({ fontSize: 40, fontWeight: 600, color: sf.sub, marginTop: 88 }, `with ${s.instructor}`),
+        s.by ?? s.instructor ? h({ fontSize: 40, fontWeight: 600, color: sf.sub, marginTop: 88 }, s.by ?? `with ${s.instructor}`) : [],
       );
     case 'pain':
       return h({ flexDirection: 'column' }, heading(s.heading), bulletList(s.items, t, () => '✓'));
     case 'promise':
       return h(
         { flexDirection: 'column' },
-        h({ fontSize: 44, fontWeight: 700, color: sf.emphasis, marginBottom: 40 }, '그래서 준비했습니다'),
+        h({ fontSize: 44, fontWeight: 700, color: sf.emphasis, marginBottom: 40 }, s.lead ?? '그래서 준비했습니다'),
         lines(s.heading, { fontSize: 92, fontWeight: 800, lineHeight: 1.25, letterSpacing: -3 }),
-        s.target ? h({ marginTop: 72, fontSize: 40, fontWeight: 600, color: sf.sub }, `추천 대상 · ${s.target}`) : [],
+        s.target ? h({ marginTop: 72, fontSize: 40, fontWeight: 600, color: sf.sub }, `${s.targetLabel ?? '추천 대상'} · ${s.target}`) : [],
       );
     case 'curriculum':
       return h({ flexDirection: 'column' }, heading(s.heading), bulletList(s.items, t, (i) => String(i + 1)));
@@ -115,12 +115,12 @@ function slideBody(s, t, photo) {
       return h(
         { flexDirection: 'column' },
         heading(s.heading),
-        ...[['일시', s.date], ['장소', s.place], ['수강료', s.price]]
+        ...(s.rows ?? [['일시', s.date], ['장소', s.place], ['수강료', s.price]])
           .filter(([, v]) => v)
           .map(([k, v]) =>
             h(
               { gap: 32, fontSize: 44, marginBottom: 28, alignItems: 'center' },
-              h({ width: 150, fontWeight: 600, color: sf.sub }, k),
+              h({ width: 210, fontWeight: 600, color: sf.sub }, k),
               h({ fontWeight: 700 }, v),
             ),
           ),

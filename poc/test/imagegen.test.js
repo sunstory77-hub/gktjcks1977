@@ -78,3 +78,30 @@ test('generateCoverImage: 이미지가 아닌 응답은 거부', async () => {
   await assert.rejects(generateCoverImage(brief, path.join(d, 'c.jpg'), { apiKey: 'k', fetchImpl: fakeFetch(() => bad) }), /JPG 또는 PNG/);
   assert.deepEqual(fs.readdirSync(d), []);
 });
+
+test('이미지 스타일 확장: 업종 추천·추가 설명·비율·상품 사진 연출', async () => {
+  const { STYLE_BY_KIND, IMAGE_RATIOS, MAX_EXTRA } = await import('../src/imagegen.js');
+  for (const list of Object.values(STYLE_BY_KIND)) for (const st of list) assert.ok(IMAGE_STYLES[st], st);
+  const p = buildImagePrompt({ ...brief, kind: 'product' }, 'stage', { extra: '파스텔 톤\n봄 느낌', ratio: '1:1' });
+  assert.match(p, /Korean product promotion/);
+  assert.match(p, /"파스텔 톤 봄 느낌"/);
+  assert.match(p, /Square composition/);
+  assert.match(p, /The podium is empty/);
+  assert.ok(buildImagePrompt(brief, 'abstract', { extra: 'x'.repeat(400) }).includes('x'.repeat(MAX_EXTRA) + '"'));
+  const withRef = buildImagePrompt(brief, 'stage', { withReference: true });
+  assert.match(withRef, /exactly as it is/);
+  assert.match(withRef, /The attached product stands on the podium/);
+  assert.doesNotMatch(withRef, /podium is empty/);
+
+  const d = tmp();
+  const png = fs.readFileSync(makeImage(path.join(d, 'g.png'), { size: '64x64' }));
+  const f = fakeFetch(() => imageResponse(png));
+  const ref = { buffer: Buffer.from('JPEGDATA'), mimeType: 'image/jpeg' };
+  const r = await generateCoverImage(brief, path.join(d, 'o.jpg'), { style: 'stage', aspectRatio: '1:1', reference: ref, apiKey: 'k', fetchImpl: f });
+  assert.equal(r.aspectRatio, '1:1');
+  const { body } = f.calls[0];
+  assert.deepEqual(body.generationConfig.imageConfig, { aspectRatio: '1:1' });
+  assert.deepEqual(body.contents[0].parts[0], { inlineData: { mimeType: 'image/jpeg', data: Buffer.from('JPEGDATA').toString('base64') } });
+  assert.ok(Object.keys(IMAGE_RATIOS).includes('4:5'));
+  await assert.rejects(generateCoverImage(brief, path.join(d, 'x.jpg'), { aspectRatio: '2:1', apiKey: 'k', fetchImpl: f }), /지원하지 않는 비율/);
+});
