@@ -1,0 +1,9 @@
+**/node_modules
+**/data
+poc/out
+poc/reel
+poc/uploads
+.git
+docs
+*.md
+!app/README.md

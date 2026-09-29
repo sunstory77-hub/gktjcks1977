@@ -1,0 +1,7 @@
+node_modules/
+bin/
+out/
+reel/assets/
+reel/index.html
+reel/renders/
+reel/compositions/
