@@ -74,6 +74,9 @@ test('API 연결: 실패는 한국어 안내, 성공 후 상태에 키가 노출
     assert.equal(bad.status, 401);
     assert.match(bad.json.error.message, /API 키/);
     assert.equal((await api.post('/api/connect', { key: 'short' })).status, 400);
+    // 마침표가 들어 있는 새 형식 키(AQ.…)도 형식 검사를 통과해야 한다(실제 키로 확인된 회귀)
+    const dotted = await api.post('/api/connect', { key: 'BAD_KEY.dotted-format_AAAAAAAAAAAAAAAAAAAA' });
+    assert.equal(dotted.status, 401, '형식은 통과하고 인증 단계에서 거절');
     assert.equal((await api.post('/api/connect', { key: 'has space and 한글 AAAAAAAAAAAA' })).status, 400);
     const ok = await api.post('/api/connect', { key: GOOD });
     assert.equal(ok.status, 200);

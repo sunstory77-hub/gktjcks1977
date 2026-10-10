@@ -91,7 +91,7 @@ ${productBlock(p)}`;
 - 마지막에 "상세페이지에 활용할 포인트" 3가지를 제안합니다.
 상품명: ${p.name || '(입력 없음)'}`;
       const r = await this.d.client().generate({ model: this._model('text', mode), parts: [...photos, { text: prompt }], temperature: 0.3, maxOutputTokens: 2048, timeoutMs: 90000, signal });
-      return { kind: 'photos', summary: r.text, sources: [], note: '사진에서 보이는 내용만 분석한 결과입니다. 사실 여부는 직접 확인해 주세요.' };
+      return { kind: 'photos', summary: N.stripMarkdown(r.text), sources: [], note: '사진에서 보이는 내용만 분석한 결과입니다. 사실 여부는 직접 확인해 주세요.' };
     }
     if (!p.name) throw new GeminiError('bad_request', '검색할 상품명을 먼저 입력해 주세요.');
     const prompt = `[TASK:research]
@@ -105,7 +105,7 @@ Google 검색으로 아래 상품(또는 같은 종류의 상품)에 대한 공�
 ${productBlock(p)}`;
     const r = await this.d.client().generate({ model: this._model('text', mode), parts: [{ text: prompt }], search: true, temperature: 0.2, maxOutputTokens: 2048, timeoutMs: 90000, signal });
     return {
-      kind: 'web', summary: r.text, sources: r.sources,
+      kind: 'web', summary: N.stripMarkdown(r.text), sources: r.sources,
       note: r.sources.length ? '아래 출처를 직접 확인한 뒤 사용해 주세요.' : '검색 출처를 확인하지 못했습니다. 참고용으로만 보시고 사실 여부를 직접 확인해 주세요.',
     };
   }

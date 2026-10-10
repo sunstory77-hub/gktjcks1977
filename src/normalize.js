@@ -192,4 +192,17 @@ function normalizeEditText(raw, type) {
   return { fields };
 }
 
-module.exports = { parseJsonLoose, toReadableText, extractFacts, preserveFacts, normalizeOrganize, normalizePlan, normalizeEditText, sectionsToText, SECTION_DEFS, defaultPrompt };
+// 검색·사진 분석 응답에 섞이는 마크다운 기호(**, ###, ---, * 목록)를 화면용 평문으로 바꾼다.
+function stripMarkdown(text) {
+  return String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\*\*(.+?)\*\*/gs, '$1')
+    .replace(/__(.+?)__/gs, '$1')
+    .replace(/^\s{0,3}#{1,6}\s*/gm, '')
+    .replace(/^\s*[-*•]\s+/gm, '· ')
+    .replace(/^\s*[-_*]{3,}\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+module.exports = { stripMarkdown, parseJsonLoose, toReadableText, extractFacts, preserveFacts, normalizeOrganize, normalizePlan, normalizeEditText, sectionsToText, SECTION_DEFS, defaultPrompt };

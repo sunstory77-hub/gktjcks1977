@@ -26,6 +26,13 @@ test('모델 선택: 이미지 모델이 없으면 null (문구만 사용 가능
   assert.equal(r.text.high, 'gemini-2.5-flash');
   assert.equal(r.image.normal, null);
 });
+test('모델 선택: 특수 모델(tts·omni·transcribe 등)은 제외, nano-banana 는 이미지 후보', () => {
+  const g = (id) => ({ name: 'models/' + id, supportedGenerationMethods: ['generateContent'] });
+  const r = resolveModels(['gemini-3.8-flash', 'gemini-3.8-flash-tts', 'gemini-omni-1.1-flash', 'gemini-3.5-transcribe', 'gemini-3.1-pro-preview-customtools', 'gemini-nano-banana-2.1', 'gemini-3.1-flash-image'].map(g));
+  assert.deepEqual(r.available.text, ['gemini-3.1-pro-preview-customtools'.replace('-customtools', '') && 'gemini-3.8-flash'].filter(Boolean));
+  assert.ok(r.available.image.includes('gemini-nano-banana-2.1') && r.available.image.includes('gemini-3.1-flash-image'));
+  assert.equal(r.image.normal, 'gemini-3.1-flash-image');
+});
 test('인증 실패(400 API key not valid) → auth, 한국어 안내', async () => {
   await assert.rejects(() => new GeminiClient('BAD_KEY_AAAAAAAAAAAAAAAAA').listModels(), (e) => e.code === 'auth' && /API 키/.test(e.message));
 });
@@ -71,6 +78,7 @@ test('키는 URL이 아닌 헤더로만 전송, 오류 메시지에서 키는 �
   assert.ok(log.length >= 1 && log.every((l) => l.keyHeader));
   assert.equal(redact('요청 AIzaSyA1234567890123456789012345 실패', 'zzz'), '요청 [키] 실패');
   assert.equal(redact('키 SECRETKEYVALUE 노출', 'SECRETKEYVALUE'), '키 [키] 노출');
+  assert.equal(redact('오류 AQ.FakeKeyForTest0123456789abcdefghij 끝', 'zzz'), '오류 [키] 끝');
 });
 test('테스트 모의 주소는 DPA_TEST=1 일 때만 사용(평소엔 Google 주소 고정)', () => {
   const saved = process.env.DPA_TEST; delete process.env.DPA_TEST;

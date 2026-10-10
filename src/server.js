@@ -39,7 +39,7 @@ function makeLogger(dir) {
     try {
       fs.mkdirSync(path.dirname(file), { recursive: true });
       try { if (fs.statSync(file).size > 1024 * 1024) fs.renameSync(file, file + '.1'); } catch { /* 첫 기록 */ }
-      fs.appendFileSync(file, `${new Date().toISOString()} ${level} ${String(msg).replace(/AIza[0-9A-Za-z_\-]{20,}/g, '[키]').slice(0, 500)}\n`);
+      fs.appendFileSync(file, `${new Date().toISOString()} ${level} ${String(msg).replace(/AIza[0-9A-Za-z_\-]{20,}/g, '[키]').replace(/\bAQ\.[0-9A-Za-z_.\-]{20,}/g, '[키]').slice(0, 500)}\n`);
     } catch { /* 로그 실패가 동작을 막지 않게 한다 */ }
   };
 }
@@ -205,7 +205,7 @@ function createApp({ dir }) {
     if (m === 'POST' && p === '/api/connect') {
       const b = await jsonBody(req);
       const key = typeof b.key === 'string' ? b.key.trim() : '';
-      if (!/^[A-Za-z0-9_\-]{20,200}$/.test(key)) throw new HttpError(400, 'bad_key', 'API 키 형식이 올바르지 않습니다. 영문·숫자로 된 키를 그대로 붙여넣어 주세요.');
+      if (!/^[A-Za-z0-9_.\-]{20,300}$/.test(key)) throw new HttpError(400, 'bad_key', 'API 키 형식이 올바르지 않습니다. 영문·숫자로 된 키를 그대로 붙여넣어 주세요.');
       const client = new GeminiClient(key);
       const list = await client.listModels();
       const r = resolveModels(list);

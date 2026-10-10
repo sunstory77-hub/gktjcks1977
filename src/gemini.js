@@ -23,7 +23,7 @@ function baseUrl() {
 function redact(text, key) {
   let t = String(text || '');
   if (key) t = t.split(key).join('[키]');
-  return t.replace(/AIza[0-9A-Za-z_\-]{20,}/g, '[키]');
+  return t.replace(/AIza[0-9A-Za-z_\-]{20,}/g, '[키]').replace(/\bAQ\.[0-9A-Za-z_.\-]{20,}/g, '[키]');
 }
 
 // ───────────── 모델 선택 (실행 시점에 models.list 로 확인) ─────────────
@@ -31,8 +31,8 @@ function parseModel(m) {
   const id = String(m.name || '').replace(/^models\//, '');
   const methods = m.supportedGenerationMethods || [];
   if (!/^gemini-/.test(id) || !methods.includes('generateContent')) return null;
-  if (/embedding|tts|audio|live|robotics|computer-use|learnlm|aqa|gemma|translate|dialog/.test(id)) return null;
-  const isImage = /image/.test(id);
+  if (/embedding|tts|audio|live|robotics|computer-use|learnlm|aqa|gemma|translate|dialog|transcribe|omni|customtools/.test(id)) return null;
+  const isImage = /image|nano-banana/.test(id);
   const ver = /gemini-(\d+(?:\.\d+)?)/.exec(id);
   const version = ver ? parseFloat(ver[1]) : (/latest/.test(id) ? 0.5 : 0);
   const tier = /flash-lite/.test(id) ? 'lite' : /pro/.test(id) ? 'pro' : /flash/.test(id) ? 'flash' : 'other';

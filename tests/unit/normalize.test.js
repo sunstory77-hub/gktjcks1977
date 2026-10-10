@@ -83,3 +83,7 @@ test('toReadableText: 숫자·널·중첩 안전', () => {
   assert.equal(N.toReadableText(5), '5');
   assert.equal(N.toReadableText({ a: { b: { c: { d: { e: { f: 1 } } } } } }), '');
 });
+test('stripMarkdown: 굵게·제목·구분선·목록 기호를 평문으로', () => {
+  const r = N.stripMarkdown('### **1. 사진 분석**\n\n---\n* **형태**: 보틀\n* 색상: 주황\n\n\n\n끝');
+  assert.equal(r, '1. 사진 분석\n\n· 형태: 보틀\n· 색상: 주황\n\n끝');
+});
