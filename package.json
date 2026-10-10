@@ -1,0 +1,17 @@
+{
+  "name": "detail-page-ai",
+  "productName": "DETAIL PAGE AI",
+  "version": "1.0.0",
+  "description": "AI 상품 상세페이지 제작 프로그램 (Windows 설치형) — by BAPI",
+  "author": "BAPI",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/unit/*.test.js",
+    "test:e2e": "node tests/e2e/run.js",
+    "build:installer": "bash build/build.sh"
+  },
+  "engines": { "node": ">=20" }
+}

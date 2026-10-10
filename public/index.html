@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="dpa-token" content="__DPA_TOKEN__">
+<meta name="dpa-version" content="__DPA_VERSION__">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0B1226">
+<title>DETAIL PAGE AI · by BAPI</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="show-input">
+<a class="skip" href="#panelInput">본문으로 건너뛰기</a>
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B6A6FF"/><stop offset="1" stop-color="#7BE8C8"/></linearGradient></defs><rect width="40" height="40" rx="11" fill="#141E40"/><rect x="10" y="7" width="20" height="26" rx="4" fill="url(#lg)"/><rect x="14" y="12" width="12" height="3" rx="1.5" fill="#141E40"/><rect x="14" y="18" width="12" height="2.4" rx="1.2" fill="#141E40" opacity=".55"/><rect x="14" y="23" width="8" height="2.4" rx="1.2" fill="#141E40" opacity=".55"/></svg>
+    <div class="brand-t"><b>DETAIL PAGE AI</b><span>by BAPI</span></div>
+  </div>
+  <div class="top-actions">
+    <button class="chip-btn" id="btnApi" type="button"><i class="dot"></i><span>API 연결 안 됨</span></button>
+    <button class="btn" id="btnProjects" type="button">프로젝트</button>
+    <button class="btn primary" id="btnExport" type="button">저장·내보내기</button>
+    <button class="btn" id="btnHelp" type="button">확인 요청</button>
+    <button class="btn icon" id="btnMore" type="button" aria-label="더보기">⋯</button>
+  </div>
+</header>
+<div id="banner" class="banner" hidden></div>
+
+<nav class="tabs" aria-label="화면 전환">
+  <button class="tab on" data-tab="input" type="button">① 입력·생성</button>
+  <button class="tab" data-tab="preview" type="button">② 미리보기·편집</button>
+</nav>
+
+<main class="layout">
+  <section id="panelInput" class="panel input" aria-label="상품 정보 입력">
+    <div class="card">
+      <div class="card-h"><span class="step">1</span><h2>상품 정보</h2></div>
+      <label class="f"><span>상품명 <em class="req">필수</em></span>
+        <input id="fName" maxlength="200" autocomplete="off" placeholder="예) 제주 한라봉 주스 200ml 12입">
+      </label>
+      <div class="f">
+        <div class="f-h"><span>상품 설명</span>
+          <div class="tools">
+            <button class="btn sm ai" id="btnOrganize" type="button">AI로 정리</button>
+            <button class="btn sm" id="btnSearch" type="button">정보 검색</button>
+            <button class="btn sm" id="btnPhoto" type="button">사진 분석</button>
+          </div>
+        </div>
+        <textarea id="fDesc" rows="8" maxlength="12000" aria-label="상품 설명" placeholder="특징, 사용 방법, 구성, 장점 등을 자유롭게 적어 주세요. 입력하지 않은 효능·인증·실적은 만들어 넣지 않습니다."></textarea>
+        <div class="hint" id="descHint" aria-live="polite"></div>
+      </div>
+      <label class="f"><span>타겟 고객</span>
+        <input id="fTarget" maxlength="1000" autocomplete="off" placeholder="예) 아침을 거르는 30대 직장인">
+      </label>
+      <div class="f"><span>상품 사진 <small>최대 5장 · 장당 10MB · JPG/PNG/WEBP · <b id="photoCount">0/5</b></small></span>
+        <div id="photoGrid" class="photos"></div>
+      </div>
+      <details id="optional" class="opt"><summary>선택 입력 — 가격 · 구성/규격 · 배송 · 프로모션</summary>
+        <label class="f"><span>가격</span><input id="fPrice" maxlength="200" placeholder="예) 29,900원"></label>
+        <label class="f"><span>구성·규격</span><textarea id="fSpec" rows="3" maxlength="3000" placeholder="예) 용량: 200ml&#10;구성: 12입"></textarea></label>
+        <label class="f"><span>배송 조건</span><textarea id="fShipping" rows="2" maxlength="1500" placeholder="예) 3,000원 / 5만원 이상 무료배송"></textarea></label>
+        <label class="f"><span>프로모션</span><textarea id="fPromo" rows="2" maxlength="1500" placeholder="예) 오픈 기념 10% 할인 (입력한 경우에만 사용됩니다)"></textarea></label>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span class="step">2</span><h2>생성</h2></div>
+      <fieldset class="seg" aria-label="생성 모드">
+        <legend class="sr">생성 모드</legend>
+        <label><input type="radio" name="mode" value="normal" checked><span>일반<small>빠르고 가볍게</small></span></label>
+        <label><input type="radio" name="mode" value="high"><span>고품질<small>더 정교하게 · 사용료 높음</small></span></label>
+      </fieldset>
+      <label class="chk"><input type="checkbox" id="optImages" checked><span>연출 이미지도 함께 만들기</span></label>
+      <p class="hint">생성하면 상품 정보와 사진이 Google Gemini API로 전송되고, 사용량에 따라 별도 요금이 발생할 수 있습니다.</p>
+      <button class="btn primary big" id="btnGenerate" type="button">AI로 상세페이지 만들기</button>
+      <button class="btn wide" id="btnBasic" type="button">AI 없이 기본 구성만 만들기</button>
+    </div>
+  </section>
+
+  <section id="panelPreview" class="panel preview" aria-label="미리보기와 편집">
+    <div class="pv-bar">
+      <div class="pv-l">
+        <button class="btn sm" id="btnUndo" type="button" disabled>되돌리기</button>
+        <button class="btn sm" id="btnRedo" type="button" disabled>다시 실행</button>
+        <button class="btn sm" id="btnPalette" type="button">색상</button>
+      </div>
+      <div class="pv-r"><span id="pageSummary" class="hint"></span><span id="saveState" class="save" data-state="idle" role="status"></span></div>
+    </div>
+    <div id="genStatus" hidden></div>
+    <div id="emptyState" class="empty">
+      <div class="empty-i" aria-hidden="true">▤</div>
+      <h3>아직 만든 상세페이지가 없습니다</h3>
+      <p>왼쪽에서 상품 정보를 입력하고 <b>AI로 상세페이지 만들기</b>를 누르세요.<br>AI 연결 없이 <b>기본 구성</b>을 만들어 직접 편집할 수도 있습니다.</p>
+    </div>
+    <div id="pageList" class="pages"></div>
+  </section>
+</main>
+
+<div id="drawerScrim" class="scrim"></div>
+<aside id="drawer" class="drawer" hidden aria-label="블록 편집">
+  <div class="dr-h"><h3 class="dr-title"></h3><button class="icon-btn dr-close" type="button" aria-label="편집 닫기">×</button></div>
+  <div class="dr-body"></div>
+</aside>
+
+<script src="/js/schema.js"></script>
+<script src="/js/render.js"></script>
+<script src="/js/zip.js"></script>
+<script src="/js/core.js"></script>
+<script src="/js/ai.js"></script>
+<script src="/js/product.js"></script>
+<script src="/js/preview.js"></script>
+<script src="/js/export.js"></script>
+<script src="/js/main.js"></script>
+</body>
+</html>
