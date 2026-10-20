@@ -261,7 +261,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
     const vis = await page.evaluate(() => window.DPA.visibleBlocks().map((b) => b.type));
     ok(!vis.includes('promo') && !vis.includes('cta'), '숨긴 블록 제외');
     await page.click('#btnExport');
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("전체 상세페이지 JPG 저장")')]);
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("상세페이지 JPG 저장")')]);
     const f = path.join(OUT, 'page.jpg'); await dl.saveAs(f);
     ok(/_상세페이지_\d{8}\.jpg$/.test(dl.suggestedFilename()), '파일명: ' + dl.suggestedFilename());
     const buf = fs.readFileSync(f); const sz = jpegSize(buf);
@@ -280,7 +280,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
   await step('A13 고해상도 JPG(가로 1720)', async () => {
     await page.click('#btnExport');
     await page.check('#optHi');
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("전체 상세페이지 JPG 저장")')]);
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("상세페이지 JPG 저장")')]);
     const f = path.join(OUT, 'page-hi.jpg'); await dl.saveAs(f);
     eq(jpegSize(fs.readFileSync(f)).w, 1720);
     await closeModal();
@@ -525,7 +525,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 
   await step('B10 생성 결과 JPG 저장 + 시각 확인용 파일', async () => {
     await page.click('#btnExport');
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("전체 상세페이지 JPG 저장")')]);
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("상세페이지 JPG 저장")')]);
     const f = path.join(OUT, 'generated.jpg'); await dl.saveAs(f);
     const sz = jpegSize(fs.readFileSync(f));
     eq(sz.w, 860); ok(sz.h > 6000, '충분히 긴 상세페이지: ' + sz.h);
@@ -584,7 +584,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
     await waitToast(/아직 실패|만들었습니다/, 20000);
     eq((await proj()).blocks.flatMap((b) => b.images).filter((s) => s.source === 'ai').length, 8, '재시도 후에도 기존 결과 유지');
     await page.click('#btnExport');
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("전체 상세페이지 JPG 저장")')]);
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("상세페이지 JPG 저장")')]);
     await dl.saveAs(path.join(OUT, 'partial.jpg')); await closeModal();
   });
 

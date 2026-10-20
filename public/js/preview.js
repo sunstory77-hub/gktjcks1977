@@ -20,13 +20,28 @@
   const paintAll = () => DPA.project.blocks.forEach((b) => queuePaint(b.id));
 
   function renderOpts() {
-    return { brief: DPA.project.brief, getImage: DPA.getImage, scale: dpr(), preview: true, pending: DPA.rt.pending };
+    return { brief: DPA.project.brief, getImage: DPA.getImage, scale: dpr(), preview: true, pending: DPA.rt.pending, lang: DPA.lang };
+  }
+
+  // 언어 보기에서 카드 머리의 번역 상태·경고 표시를 갱신한다(캔버스는 다시 그리지 않는다).
+  function updateMeta(card, b0) {
+    const meta = $('.meta', card);
+    if (!meta) return;
+    meta.replaceChildren();
+    if (DPA.lang === 'ko') return;
+    const st = S.trStatus(DPA.project, DPA.lang, b0);
+    if (st === 'n/a') return;
+    meta.append(h('span', { class: 'chip st-' + st, text: S.STATUS_LABEL[st] }));
+    const w = S.qaCheck(DPA.project, DPA.lang, b0).length;
+    if (w) meta.append(h('span', { class: 'chip warn-chip', title: '자동 점검 경고', text: `⚠ ${w}` }));
   }
 
   function paintBlock(id) {
-    const b = findBlock(id);
+    const b0 = findBlock(id);
     const card = $(`[data-bid="${id}"]`, $('#pageList'));
-    if (!b || !card) return;
+    if (!b0 || !card) return;
+    const b = DPA.lang === 'ko' ? b0 : S.localizeBlock(DPA.project, DPA.lang, b0);
+    updateMeta(card, b0);
     const cv = $('.cv', card);
     if (b.hidden) { cv.replaceChildren(); return; }
     const { canvas } = R.renderBlock(b, renderOpts());
@@ -45,21 +60,29 @@
     }, null, 'blocks');
   }
   function toggleHidden(id) {
+    if (DPA.lang !== 'ko') { DPA.toggleLangHidden(id); return; }
     DPA.mutate((p) => { const b = p.blocks.find((x) => x.id === id); if (b) b.hidden = !b.hidden; }, null, 'blocks');
   }
 
-  function cardFor(b, idx, total) {
+  function cardFor(b0, idx, total) {
+    const lang = DPA.lang;
+    const b = lang === 'ko' ? b0 : S.localizeBlock(DPA.project, lang, b0);
     const label = S.LABELS[b.type];
-    const hiddenRow = h('div', { class: 'blk-hidden' }, h('span', { text: `숨김 · ${label}` }), h('button', { class: 'btn sm', text: '복원', onclick: () => toggleHidden(b.id) }));
+    const koHidden = b0.hidden;
+    const hiddenRow = h('div', { class: 'blk-hidden' },
+      h('span', { text: koHidden && lang !== 'ko' ? `숨김 · ${label} (한국어 화면에서 숨김)` : `숨김 · ${label}${lang !== 'ko' ? ' (이 언어에서만)' : ''}` }),
+      koHidden && lang !== 'ko' ? null : h('button', { class: 'btn sm', text: '복원', onclick: () => toggleHidden(b0.id) }));
+    const moveTip = lang !== 'ko' ? '순서는 한국어 화면에서 바꿉니다' : null;
     const bar = h('div', { class: 'blk-bar' },
       h('span', { class: 'blk-no', text: String(idx + 1).padStart(2, '0') }),
       h('b', { class: 'blk-name', text: label }),
+      h('span', { class: 'meta' }),
       h('span', { class: 'blk-ctl' },
-        h('button', { class: 'btn sm icon', 'aria-label': `${label} 위로`, text: '▲', disabled: idx === 0, onclick: () => moveBlock(b.id, -1) }),
-        h('button', { class: 'btn sm icon', 'aria-label': `${label} 아래로`, text: '▼', disabled: idx === total - 1, onclick: () => moveBlock(b.id, 1) }),
-        h('button', { class: 'btn sm', text: '수정', onclick: () => openDrawer(b.id) }),
-        h('button', { class: 'btn sm', text: '숨기기', onclick: () => toggleHidden(b.id) })));
-    return h('article', { class: 'blk' + (b.hidden ? ' is-hidden' : ''), dataset: { bid: b.id } }, b.hidden ? hiddenRow : bar, h('div', { class: 'cv' }));
+        h('button', { class: 'btn sm icon', 'aria-label': `${label} 위로`, title: moveTip, text: '▲', disabled: idx === 0 || lang !== 'ko', onclick: () => moveBlock(b0.id, -1) }),
+        h('button', { class: 'btn sm icon', 'aria-label': `${label} 아래로`, title: moveTip, text: '▼', disabled: idx === total - 1 || lang !== 'ko', onclick: () => moveBlock(b0.id, 1) }),
+        h('button', { class: 'btn sm', text: lang === 'ko' ? '수정' : '번역 수정', onclick: () => openDrawer(b0.id) }),
+        h('button', { class: 'btn sm', text: '숨기기', onclick: () => toggleHidden(b0.id) })));
+    return h('article', { class: 'blk' + (b.hidden ? ' is-hidden' : ''), dataset: { bid: b0.id } }, b.hidden ? hiddenRow : bar, h('div', { class: 'cv' }));
   }
 
   function renderList() {
@@ -72,7 +95,7 @@
   }
 
   function updateSummary() {
-    const vis = DPA.visibleBlocks();
+    const vis = DPA.visibleBlocks(DPA.lang);
     const imgs = vis.reduce((n, b) => n + b.images.filter(DPA.slotVisible).length, 0);
     const el = $('#pageSummary');
     if (el) el.textContent = DPA.project.blocks.length ? `보이는 블록 ${vis.length}개 · 사용 이미지 ${imgs}장` : '';
@@ -170,6 +193,7 @@
   }
   function redrawDrawer() {
     if (!drawerId) return;
+    if (DPA.lang !== 'ko') { DPA.redrawTrDrawer(drawerId); return; }
     const b = findBlock(drawerId);
     if (!b) { closeDrawer(); return; }
     const body = $('#drawer .dr-body');
@@ -280,6 +304,7 @@
   async function startGenerate() {
     const pr = DPA.project;
     if (genJob) { toast('이미 생성 중입니다.', 'warn'); return; }
+    if (DPA.lang !== 'ko') await DPA.setLang('ko');
     if (!pr.product.name.trim()) { toast('상품명을 입력해 주세요.', 'warn'); $('#fName').focus(); return; }
     const hasWork = pr.blocks.length > 0;
     const withImages = $('#optImages').checked;
@@ -421,6 +446,7 @@
 
   function makeBasic() {
     const pr = DPA.project;
+    if (DPA.lang !== 'ko') DPA.setLang('ko');
     if (!pr.product.name.trim()) { toast('상품명을 입력해 주세요.', 'warn'); $('#fName').focus(); return; }
     const go = () => {
       DPA.mutate((p) => { const r = S.buildBlocks(p.product, p.photos, {}); p.blocks = r.blocks; p.brief = r.brief; }, null, 'all');
@@ -467,7 +493,7 @@
     });
     DPA.on('restored', () => { renderList(); if (drawerId) redrawDrawer(); });
     DPA.on('image-loaded', ({ aid }) => {
-      DPA.project.blocks.forEach((b) => { if (b.images.some((s) => s.assetId === aid)) queuePaint(b.id); });
+      DPA.project.blocks.forEach((b) => { if (DPA.lang !== 'ko' || b.images.some((s) => s.assetId === aid)) queuePaint(b.id); });
     });
     DPA.on('undo-state', () => { $('#btnUndo').disabled = !DPA.canUndo(); $('#btnRedo').disabled = !DPA.canRedo(); });
     DPA.on('gen-state', () => { const on = !!genJob; $('#btnGenerate').disabled = on; $('#btnBasic').disabled = on; });
@@ -485,5 +511,10 @@
     DPA.emit('undo-state');
   };
   DPA.repaintAll = paintAll;
+  DPA.renderList = renderList;
+  DPA.queuePaint = queuePaint;
+  DPA.closeDrawer = closeDrawer;
+  DPA.openDrawerRaw = (id) => { drawerId = id; $('#drawer').hidden = false; document.body.classList.add('drawer-open'); };
+  DPA.getDrawerId = () => drawerId;
   DPA.afterFonts = () => paintAll();
 })();

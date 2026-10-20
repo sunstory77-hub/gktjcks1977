@@ -11,6 +11,7 @@ const S = require('../public/js/schema.js');
 const { Store, StoreError, dataDir, atomicWrite } = require('./store.js');
 const { GeminiClient, GeminiError, resolveModels } = require('./gemini.js');
 const { AiService, Jobs, runGenerate, runImageJob, errView } = require('./ai.js');
+const Review = require('./review.js');
 
 const APP_NAME = 'DETAIL PAGE AI';
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -249,6 +250,20 @@ function createApp({ dir }) {
         }
         if (m === 'DELETE') { await store.deleteProject(pid); return send(res, 200, { ok: true }); }
       }
+      if (m === 'POST' && seg[3] === 'review' && seg[4] === 'export') {
+        const b = await jsonBody(req);
+        const proj = await store.readProject(pid);
+        const langs = (Array.isArray(b.langs) ? b.langs : []).filter((c) => proj.i18n.langs.includes(c));
+        let pkg;
+        try { pkg = Review.buildPackage(proj, langs, b.format === 'xliff' ? 'xliff' : 'xlsx', { pending: !!b.pending }); } catch (e) { throw new HttpError(400, 'bad_request', e.message); }
+        return send(res, 200, pkg.data, { 'content-type': pkg.mime, 'x-dpa-filename': encodeURIComponent(pkg.filename), 'access-control-expose-headers': 'x-dpa-filename' });
+      }
+      if (m === 'POST' && seg[3] === 'review' && seg[4] === 'import') {
+        const buf = await readBody(req, 30 * 1024 * 1024);
+        const proj = await store.readProject(pid);
+        const name = decodeURIComponent(String(req.headers['x-dpa-filename'] || 'review.xlsx')).slice(0, 200);
+        try { return send(res, 200, Review.parseReviewFile(proj, name, buf)); } catch (e) { throw new HttpError(400, 'bad_review_file', '검수 파일을 읽지 못했습니다: ' + e.message); }
+      }
       if (m === 'GET' && seg[3] === 'backup') {
         const text = await store.exportBackup(pid, VERSION);
         return send(res, 200, Buffer.from(text), { 'content-type': 'application/json; charset=utf-8' });
@@ -286,6 +301,29 @@ function createApp({ dir }) {
       }
       if (seg[2] === 'edit-text') {
         return send(res, 200, await ai.editText({ type: String(b.type || ''), fields: b.fields, instruction: b.instruction, product: b.product, brief: b.brief, mode: modeOf(b), signal }));
+      }
+      if (seg[2] === 'translate') {
+        const lang = String(b.lang || '');
+        const meta = S.LANG_BY[lang];
+        if (!meta || meta.source) throw new HttpError(400, 'bad_lang', '지원하지 않는 언어입니다.');
+        const raw = Array.isArray(b.blocks) ? b.blocks.slice(0, 12) : [];
+        const seen = new Set();
+        let count = 0;
+        const blocks = [];
+        for (const x of raw) {
+          if (!x || !S.LABELS[x.type] || seen.has(x.type) || !x.segments || typeof x.segments !== 'object') continue;
+          seen.add(x.type);
+          const segments = {};
+          for (const [k, v] of Object.entries(x.segments)) {
+            if (!/^[A-Za-z0-9_.]{1,60}$/.test(k) || typeof v !== 'string' || !v.trim()) continue;
+            segments[k] = S.str(v, 4500); count += 1;
+          }
+          if (Object.keys(segments).length) blocks.push({ type: x.type, segments });
+        }
+        if (!blocks.length || count > 300) throw new HttpError(400, 'no_items', '번역할 문장이 없거나 너무 많습니다.');
+        const glossary = S.sanitizeI18n({ langs: [lang], glossary: b.glossary }).glossary;
+        const market = S.sanitizeI18n({ langs: [lang], data: { [lang]: { market: b.market } } }).data[lang].market;
+        return send(res, 200, await ai.translate({ lang, blocks, product: b.product, glossary, market, mode: modeOf(b), signal }));
       }
       if (seg[2] === 'generate') {
         const projectId = await projectOk(b);

@@ -10,8 +10,11 @@
     DPA.resetHistory();
     DPA.clearConflict();
     $$('input[name=mode]').forEach((r) => { r.checked = r.value === p.mode; });
+    DPA.lang = 'ko';
+    document.body.dataset.lang = 'ko';
     DPA.fillForm();
     DPA.loadPreview();
+    DPA.renderLangBar();
     document.title = `${p.name} · DETAIL PAGE AI`;
     DPA.emit('save-state-reset');
     await DPA.ensureFonts();
@@ -63,6 +66,7 @@
     wire();
     DPA.initProduct();
     DPA.initPreview();
+    DPA.initI18n();
     await DPA.refreshState();
     try {
       const r = await api('GET', '/api/projects/current');

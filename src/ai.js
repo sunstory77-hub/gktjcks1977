@@ -149,6 +149,45 @@ ${productBlock(p)}
     return N.normalizePlan(r.text, p, photoList);
   }
 
+
+  // ───────────── 번역 (한국어 → 대상 언어) ─────────────
+  async translate({ lang, blocks, product, glossary, market, mode, signal }) {
+    const meta = S.LANG_BY[lang];
+    if (!meta || meta.source) throw new GeminiError('bad_request', '번역할 수 없는 언어입니다.');
+    if (!blocks.length) throw new GeminiError('bad_request', '번역할 문장이 없습니다.');
+    const p = S.sanitizeProduct(product);
+    const gl = (glossary || []).map((g) => (g.dnt ? `- "${g.ko}" → keep exactly as written (do not translate)` : (g.tr && g.tr[lang] ? `- "${g.ko}" → "${g.tr[lang]}"` : ''))).filter(Boolean).join('\n');
+    const mk = [];
+    if (market && market.name) mk.push(`- Official product name in this market: "${market.name}" (use it wherever the Korean product name "${p.name}" appears)`);
+    if (market && market.price) mk.push(`- Local price: "${market.price}" (use it instead of any Korean won price; never convert currency yourself)`);
+    if (market && market.shipping) mk.push(`- Shipping terms for this market: "${market.shipping}"`);
+    if (market && market.promo) mk.push(`- Promotion for this market: "${market.promo}"`);
+    const input = JSON.stringify({ blocks: blocks.map((b) => ({ type: b.type, segments: b.segments })) });
+    const prompt = `[TASK:translate]
+You are a professional e-commerce localization translator. Translate the Korean product detail page copy below into ${meta.ai}.
+
+Rules:
+- ${RULES.split('\n- ').join('\n- ')}
+- Translate naturally as marketing copy for shoppers in the target market; do not translate word by word. Keep the meaning, tone and level of claim of the source.
+- Never add claims, certifications, effects, awards, statistics or ingredients that are not in the Korean source. Never strengthen a claim.
+- Keep every number, unit, quantity, percentage and size exactly as in the source. Do not convert units or currency.
+- Keep brand names, product model names and proper nouns as in the source, following the glossary below.
+- Each segment key (path) must stay exactly the same; translate only the values. Keep line breaks (\n) where they exist. Return every segment; do not merge, split, add or drop segments.
+- Keep the length close to the source so the text fits the image layout (headings short and punchy).
+- Do not use Korean in the output.
+${gl ? `\nGlossary (must follow):\n${gl}\n` : ''}${mk.length ? `\nMarket information:\n${mk.join('\n')}\n` : ''}
+Product context (Korean, for disambiguation only): name="${p.name}" / target="${p.target}"
+
+Input JSON:
+${input}
+
+Output JSON only, in this exact shape: {"blocks":[{"type":"<same type>","segments":{"<same path>":"<translation>"}}]}`;
+    const r = await this.d.client().generate({
+      model: this._model('text', mode), parts: [{ text: prompt }], json: true, temperature: 0.3, maxOutputTokens: 16384, timeoutMs: 170000, signal,
+    });
+    return N.normalizeTranslation(r.text, blocks);
+  }
+
   // ───────────── 블록 문구 수정 ─────────────
   async editText({ type, fields, instruction, product, brief, mode, signal }) {
     if (!S.LABELS[type]) throw new GeminiError('bad_request', '블록 종류가 올바르지 않습니다.');

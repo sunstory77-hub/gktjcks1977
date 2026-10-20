@@ -3,7 +3,8 @@
 # 한계: wine 9 에서는 Node 의 '외부로 나가는 TCP 연결'이 실패해(connect UNKNOWN) Gemini 호출·모의 서버 연결은 시험할 수 없다.
 set -uo pipefail
 export LC_ALL=C.UTF-8 LANG=C.UTF-8 WINEDEBUG=-all
-EXE="$(realpath "${1:-dist/DETAIL_PAGE_AI_Setup_v1.0.0.exe}")"
+VER="$(node -p "require('./package.json').version")"
+EXE="$(realpath "${1:-dist/DETAIL_PAGE_AI_Setup_v${VER}.exe}")"
 export WINEPREFIX="${WINEPREFIX:-$(mktemp -d)/wine}" DISPLAY="${DISPLAY:-:99}"
 pgrep -x Xvfb >/dev/null || { Xvfb "$DISPLAY" -screen 0 1280x800x24 >/dev/null 2>&1 & sleep 1; }
 mkdir -p "$WINEPREFIX"
@@ -26,7 +27,7 @@ wine reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\DETAIL 
 if waitup; then
   H="$(health)"; t "실행기 → 번들 Node → 서버 시작(콘솔 창 없는 실행기)" ok
   p1=$(echo "$H" | jget "['pid']")
-  [ "$(echo "$H" | jget "['version']")" = "1.0.0" ] && t "버전 응답 1.0.0" ok || t "버전" fail "$H"
+  [ "$(echo "$H" | jget "['version']")" = "$VER" ] && t "버전 응답 $VER" ok || t "버전" fail "$H"
   curl -s "http://127.0.0.1:$PORT/" | grep -q "DETAIL PAGE AI" && t "화면(HTML) 제공" ok || t "화면" fail "없음"
   [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: evil.test' http://127.0.0.1:$PORT/api/health)" = "403" ] && t "다른 Host 거부" ok || t "Host 검증" fail "거부 안 됨"
   [ -f "$DATA/instance.json" ] && [ -d "$DATA/projects" ] && t "작업 자료 폴더는 설치 폴더 밖(%LOCALAPPDATA%\\DETAIL PAGE AI)" ok || t "자료 폴더" fail "없음"

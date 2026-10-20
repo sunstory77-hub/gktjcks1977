@@ -82,7 +82,7 @@
 
   async function api(method, path, body, opts) {
     opts = opts || {};
-    const headers = { 'x-dpa-token': TOKEN };
+    const headers = { 'x-dpa-token': TOKEN, ...((opts && opts.headers) || {}) };
     let payload;
     if (body instanceof Blob) { payload = body; headers['content-type'] = body.type || 'application/octet-stream'; }
     else if (typeof body === 'string' && opts.rawText) { payload = body; headers['content-type'] = 'application/json'; }
@@ -94,6 +94,7 @@
       if (e && e.name === 'AbortError') throw new ApiError('cancelled', '취소되었습니다.', 0);
       throw new ApiError('offline', '프로그램과 연결할 수 없습니다. 프로그램이 종료되었다면 바탕화면 바로가기로 다시 실행해 주세요.', 0);
     }
+    if (opts.raw && res.ok) return res;
     if (opts.blob && res.ok) return res.blob();
     let data = null;
     const text = await res.text();
@@ -144,7 +145,7 @@
   const undoStack = [];
   const redoStack = [];
   let lastKey = null, lastAt = 0;
-  const snapshot = () => JSON.stringify({ name: DPA.project.name, product: DPA.project.product, photos: DPA.project.photos, mode: DPA.project.mode, brief: DPA.project.brief, blocks: DPA.project.blocks });
+  const snapshot = () => JSON.stringify({ name: DPA.project.name, product: DPA.project.product, photos: DPA.project.photos, mode: DPA.project.mode, brief: DPA.project.brief, blocks: DPA.project.blocks, i18n: DPA.project.i18n });
   const restore = (json) => { Object.assign(DPA.project, JSON.parse(json)); };
 
   function pushUndo() {
@@ -239,6 +240,9 @@
     setTimeout(() => URL.revokeObjectURL(url), 15000);
   };
   DPA.errMsg = (e) => (e && e.message) || '알 수 없는 오류가 발생했습니다.';
-  DPA.visibleBlocks = () => DPA.project.blocks.filter((b) => !b.hidden && S.blockHasContent(b));
+  // 현재(또는 지정한) 언어로 보이는 블록. 한국어가 아니면 번역문·언어별 이미지·언어별 숨김이 반영된 사본이다.
+  DPA.lang = 'ko';
+  DPA.localBlocks = (lang) => { const l = lang || DPA.lang || 'ko'; return DPA.project.blocks.map((b) => (l === 'ko' ? b : S.localizeBlock(DPA.project, l, b))); };
+  DPA.visibleBlocks = (lang) => DPA.localBlocks(lang).filter((b) => !b.hidden && S.blockHasContent(b));
   DPA.slotVisible = (s) => !!(s.assetId && !s.deleted);
 })();

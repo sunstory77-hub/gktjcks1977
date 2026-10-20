@@ -128,6 +128,27 @@ function createMock() {
         if (fields.title !== undefined) fields.title = '수정된 ' + (fields.title || '제목');
         return wrap(JSON.stringify({ fields }));
       }
+      if (task === 'translate') {
+        const m2 = /Input JSON:\n([\s\S]*?)\n\nOutput JSON only/.exec(text);
+        let input; try { input = JSON.parse(m2[1]); } catch { return wrap('{}'); }
+        const tag = { English: 'EN', Japanese: 'JA', 'Simplified Chinese': 'ZH' }[(/into (English|Japanese|Simplified Chinese)/.exec(text) || [])[1]] || 'XX';
+        const gl = [...text.matchAll(/- "([^"]+)" → "([^"]+)"/g)].map((x) => [x[1], x[2]]);
+        const dnt = [...text.matchAll(/- "([^"]+)" → keep exactly/g)].map((x) => x[1]);
+        const market = /Local price: "([^"]+)"/.exec(text);
+        const mname = /Official product name in this market: "([^"]+)" \(use it wherever the Korean product name "([^"]+)" appears\)/.exec(text);
+        let n = 0;
+        const blocks = input.blocks.map((b) => ({ type: b.type, segments: Object.fromEntries(Object.entries(b.segments).map(([path, ko]) => {
+          n += 1;
+          if (key.startsWith('PARTIALTR_KEY') && n % 3 === 0) return null;
+          if (key.startsWith('HANGUL_KEY') && n === 1) return [path, ko];
+          const terms = [...gl.filter(([k]) => ko.includes(k)).map(([, v]) => v), ...dnt.filter((k) => ko.includes(k))].join(' ');
+          const nums = key.startsWith('NUMDROP_KEY') ? '' : (market && /원/.test(ko) ? market[1] : (ko.match(/\d[\d,.]*/g) || []).join(' '));
+          const nm = mname && ko.includes(mname[2]) ? mname[1] : '';
+          return [path, `${tag}: ${path} ${nm} ${terms} ${nums}`.replace(/\s+/g, ' ').trim()];
+        }).filter(Boolean)) }));
+        const body = JSON.stringify({ blocks });
+        return wrap(key.startsWith('WEIRD_KEY') ? '```json\n' + body + '\n```' : body);
+      }
       if (task === 'photos') return wrap('사진 분석 결과: 흰 배경 위의 제품입니다. 확인 불가: 인증.');
       if (task === 'research') {
         res.writeHead(200, { 'content-type': 'application/json' });

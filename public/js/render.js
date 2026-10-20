@@ -6,7 +6,18 @@
   const W = 860;
   const PADX = 64;
   const INNER = W - PADX * 2;
-  const FAMILY = '"Pretendard Variable", Pretendard, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+  const TAIL = '"Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+  const FAMILY = `"Pretendard Variable", Pretendard, ${TAIL}`;
+  // 언어별 글꼴 스택(일본어·중국어는 Noto Sans 를 먼저 쓰고, 없으면 시스템 글꼴로 대체)
+  const STACKS = {
+    ko: FAMILY, en: FAMILY,
+    ja: `"Noto Sans JP Variable", "Pretendard Variable", "Yu Gothic UI", "Meiryo", ${TAIL}`,
+    'zh-CN': `"Noto Sans SC Variable", "Pretendard Variable", "Microsoft YaHei", "PingFang SC", ${TAIL}`,
+  };
+  const WRAP_MODE = { ko: 'ko', en: 'latin', ja: 'cjk', 'zh-CN': 'cjk' };
+  // renderBlock 동안만 쓰는 현재 언어 설정(동기 처리라 안전)
+  const CUR = { family: FAMILY, wrap: 'ko' };
+  function useLang(lang) { CUR.family = STACKS[lang] || FAMILY; CUR.wrap = WRAP_MODE[lang] || 'ko'; }
 
   function rgba(hex, a) {
     const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
@@ -35,10 +46,49 @@
     if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
     return measureCtx;
   }
-  const fontOf = (size, weight) => `${weight || 400} ${size}px ${FAMILY}`;
+  const fontOf = (size, weight) => `${weight || 400} ${size}px ${CUR.family}`;
+
+  // 일본어·중국어: 한자·가나는 글자 단위, 영문·숫자 묶음은 한 단어로 유지. 줄머리 금칙(닫는 부호)은 줄 끝에 매달고, 줄 끝 금칙(여는 괄호)은 다음 줄로 넘긴다.
+  const CLOSERS = new Set('、。，．,.!?！？）)」』】〕〉》］］｝}％%：:；;ー…‥”’'.split(''));
+  const OPENERS = new Set('（(「『【〔〈《［［｛{“‘'.split(''));
+  function wrapCjk(text, size, weight, maxW) {
+    const c = mctx();
+    c.font = fontOf(size, weight);
+    const width = (s) => c.measureText(s).width;
+    const lines = [];
+    for (const para of String(text).split('\n')) {
+      if (!para.trim()) { lines.push(''); continue; }
+      const tokens = para.match(/[A-Za-z0-9][A-Za-z0-9'’.,:%$€£¥\-_/@+#&]*|\s+|[\s\S]/gu) || [];
+      let cur = [];
+      let curW = 0;
+      const flush = () => { const t = cur.join('').replace(/\s+$/, ''); if (t) lines.push(t); cur = []; curW = 0; };
+      for (const tok of tokens) {
+        if (/^\s+$/.test(tok)) { if (cur.length) { cur.push(' '); curW += width(' '); } continue; }
+        const w = width(tok);
+        if (curW + w > maxW && cur.length) {
+          if (CLOSERS.has(tok) && curW + w <= maxW * 1.06) { cur.push(tok); curW += w; continue; }   // 줄 끝에 매달기
+          const carry = [];
+          while (cur.length && OPENERS.has(cur[cur.length - 1])) carry.unshift(cur.pop());              // 여는 괄호는 다음 줄로
+          flush();
+          cur = carry; curW = width(carry.join(''));
+        }
+        // 영문 단어 하나가 한 줄보다 길면 글자 단위로 자른다
+        if (w > maxW && /^[A-Za-z0-9]/.test(tok)) {
+          let part = '';
+          for (const ch of tok) { if (width(part + ch) > maxW && part) { cur.push(part); flush(); part = ch; } else part += ch; }
+          cur.push(part); curW = width(part);
+          continue;
+        }
+        cur.push(tok); curW += w;
+      }
+      flush();
+    }
+    return lines;
+  }
 
   // 한글은 글자 단위, 영문은 단어 단위로 줄바꿈한다. 줄머리에 문장부호가 오지 않게 한다.
   function wrap(text, size, weight, maxW) {
+    if (CUR.wrap === 'cjk') return wrapCjk(text, size, weight, maxW);
     const c = mctx();
     c.font = fontOf(size, weight);
     const lines = [];
@@ -82,7 +132,7 @@
       const align = o.align || 'left';
       const tx = align === 'center' ? x + maxW / 2 : align === 'right' ? x + maxW : x;
       lines.forEach((ln, i) => {
-        if (ln) this.ops.push({ t: 'text', s: ln, x: tx, y: this.y + i * lh + lh / 2, size, weight, color: o.color, align, ls: o.ls || 0 });
+        if (ln) this.ops.push({ t: 'text', s: ln, x: tx, y: this.y + i * lh + lh / 2, size, weight, color: o.color, align, ls: CUR.wrap === 'cjk' ? 0 : (o.ls || 0) });
       });
       const h = lines.length * lh;
       this.y += h;
@@ -360,6 +410,10 @@
    * 내용이 없으면 { canvas:null, height:0 }.
    */
   function renderBlock(block, opts) {
+    useLang(opts.lang || 'ko');
+    try { return renderBlockInner(block, opts); } finally { useLang('ko'); }
+  }
+  function renderBlockInner(block, opts) {
     const pal = opts.brief.palette;
     const L = new Layout(pal, opts);
     const fn = LAYOUT[block.type];
@@ -409,5 +463,5 @@
     return { canvas, height };
   }
 
-  root.DPA_RENDER = { W, renderBlock, wrap, FAMILY, fontOf };
+  root.DPA_RENDER = { W, renderBlock, wrap, FAMILY, STACKS, fontOf, useLang, wrapCjk };
 })(typeof window !== 'undefined' ? window : globalThis);

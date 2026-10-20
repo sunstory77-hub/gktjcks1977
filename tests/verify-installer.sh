@@ -2,7 +2,8 @@
 # 설치 EXE 내용 점검: 사용자 자료·인증키·테스트 사진·개발 파일이 들어 있지 않은지 확인한다.
 set -euo pipefail
 export LC_ALL=C.UTF-8 LANG=C.UTF-8
-EXE="${1:-dist/DETAIL_PAGE_AI_Setup_v1.0.0.exe}"
+VER="$(node -p "require('./package.json').version")"
+EXE="${1:-dist/DETAIL_PAGE_AI_Setup_v${VER}.exe}"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 file "$EXE" | grep -q "PE32+ executable.*x86-64" && echo "✔ 64비트 Windows 실행 파일"
 7z x -y -o"$TMP" "$EXE" >/dev/null
@@ -18,6 +19,8 @@ chk "소스 맵·.git 없음" "find '$TMP' \\( -name '*.map' -o -name '.git' \\)
 test -f "$TMP/runtime/node.exe" && echo "✔ 번들 Node.js 런타임 포함(별도 설치 불필요)"
 test -f "$TMP/runtime/LICENSE-node.txt" && echo "✔ Node.js 라이선스 포함"
 find "$TMP" -name 'Pretendard-LICENSE-OFL.txt' | grep -q . && echo "✔ Pretendard OFL 라이선스 포함"
+[ "$(find "$TMP" -name 'LICENSE-OFL.txt' | wc -l)" -ge 2 ] && echo "✔ Noto Sans JP/SC OFL 라이선스 포함"
+[ "$(find "$TMP" -name '*.woff2' | wc -l)" -ge 200 ] && echo "✔ 일본어·중국어 글꼴 슬라이스 포함($(find "$TMP" -name '*.woff2' | wc -l)개)"
 find "$TMP" -name 'LICENSES.md' | grep -q . && echo "✔ LICENSES.md 포함"
 grep -rq 'server.listen(port, .127.0.0.1.)' "$TMP/app/src/server.js" && echo "✔ 127.0.0.1 전용 바인딩 코드 포함"
 exit $fail

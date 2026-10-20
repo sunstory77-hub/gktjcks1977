@@ -20,8 +20,14 @@ function tmpDir(tag) {
   return fs.mkdtempSync(path.join(process.env.DPA_TEST_TMP || os.tmpdir(), `dpa-${tag}-`));
 }
 
+function freePort() {
+  return new Promise((resolve) => { const s = require('net').createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
+}
+
 // opts: { dataDir, port, mockPort, appRoot, args, env }
-function startApp(opts) {
+// port 를 지정하지 않으면 빈 포트를 따로 받는다(병렬 시험끼리 같은 기본 포트에서 서로의 서버에 붙는 것을 막는다).
+async function startApp(opts) {
+  if (opts.port == null) opts = { ...opts, port: await freePort() };
   return new Promise((resolve, reject) => {
     const root = opts.appRoot || ROOT;
     const env = { ...process.env, DPA_TEST: '1', DPA_DATA_DIR: opts.dataDir, ...(opts.mockPort ? { DPA_GEMINI_BASE: `http://127.0.0.1:${opts.mockPort}/v1beta` } : {}), ...(opts.port ? { DPA_PORT: String(opts.port) } : {}), ...(opts.env || {}) };

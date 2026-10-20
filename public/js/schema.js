@@ -5,7 +5,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
 
   const BLOCK_TYPES = [
     { type: 'info', label: '상품 정보' },
@@ -164,14 +164,18 @@
     }
     return out;
   }
+  let PAIR_SCALE = 1; // normalizeFields 호출 동안만 사용하는 스케일(동기 호출이라 안전)
   function pair(x, a, b, maxA, maxB) {
     if (!x || typeof x !== 'object') return null;
-    const o = { [a]: S(x[a], maxA), [b]: S(x[b], maxB) };
+    const o = { [a]: str(x[a], maxA && Math.round(maxA * PAIR_SCALE)), [b]: str(x[b], maxB && Math.round(maxB * PAIR_SCALE)) };
     return o[a] || o[b] ? o : null;
   }
 
-  function normalizeFields(type, f) {
+  // scale: 번역문은 한국어보다 길어질 수 있어 문자열 한도를 늘려 적용한다(잘림 방지).
+  function normalizeFieldsInner(type, f, scale) {
     f = f && typeof f === 'object' ? f : {};
+    const k = scale || 1;
+    const S = (v, max) => str(v, max ? Math.round(max * k) : max);
     switch (type) {
       case 'info': return { eyebrow: S(f.eyebrow, LIMITS.label), title: S(f.title, LIMITS.short), subtitle: S(f.subtitle, LIMITS.mid), rows: list(f.rows, LIMITS.rows, (x) => pair(x, 'label', 'value', LIMITS.label, LIMITS.mid)) };
       case 'promo': return { badge: S(f.badge, LIMITS.label), title: S(f.title, LIMITS.short), desc: S(f.desc, LIMITS.mid) };
@@ -187,6 +191,12 @@
       case 'cta': return { title: S(f.title, LIMITS.short), desc: S(f.desc, LIMITS.mid), buttonLabel: S(f.buttonLabel, LIMITS.label), buttonUrl: S(f.buttonUrl, 500) };
       default: return {};
     }
+  }
+
+  function normalizeFields(type, f, scale) {
+    const prev = PAIR_SCALE;
+    PAIR_SCALE = scale || 1;
+    try { return normalizeFieldsInner(type, f, scale); } finally { PAIR_SCALE = prev; }
   }
 
   function emptyFields(type) { return normalizeFields(type, {}); }
@@ -264,7 +274,231 @@
       mode: p.mode === 'high' ? 'high' : 'normal',
       brief: sanitizeBrief(p.brief, product),
       blocks,
+      i18n: sanitizeI18n(p.i18n),
     };
+  }
+
+  // ───────────── 다국어(번역·검수) ─────────────
+  // 1차 지원: 영어·일본어·중국어(간체). 언어를 더 늘리려면 이 목록에 항목(글꼴 포함)을 추가한다.
+  const LANGS = [
+    { code: 'ko', name: '한국어', native: '한국어', source: true, family: '"Pretendard Variable", Pretendard', wrap: 'ko', htmlLang: 'ko' },
+    { code: 'en', name: '영어', native: 'English', ai: 'English (American English, natural e-commerce marketing tone)', family: '"Pretendard Variable", Pretendard', wrap: 'latin', htmlLang: 'en', short: 'EN' },
+    { code: 'ja', name: '일본어', native: '日本語', ai: 'Japanese (polite です・ます style, natural for Japanese e-commerce product pages)', family: '"Noto Sans JP Variable"', wrap: 'cjk', htmlLang: 'ja', short: 'JA' },
+    { code: 'zh-CN', name: '중국어(간체)', native: '简体中文', ai: 'Simplified Chinese (Mainland China usage and vocabulary, natural for Chinese e-commerce)', family: '"Noto Sans SC Variable"', wrap: 'cjk', htmlLang: 'zh-CN', short: 'ZH' },
+  ];
+  const LANG_BY = Object.fromEntries(LANGS.map((l) => [l.code, l]));
+  const TARGET_LANGS = LANGS.filter((l) => !l.source);
+  const TR_STATUS = ['ai', 'edited', 'review', 'approved'];
+  const STATUS_LABEL = { none: '미번역', ai: 'AI 초안', edited: '직접 수정', review: '검수 요청', approved: '검수 완료', stale: '원문 변경' };
+  const TR_SCALE = 3; // 번역문 문자열 한도 배율
+
+  // 번역 대상 문자열을 평탄화: [{ path:'items.0.title', text }] (구매 링크는 제외)
+  function flatten(obj, prefix, out) {
+    out = out || []; prefix = prefix || '';
+    if (typeof obj === 'string') { if (obj.trim()) out.push({ path: prefix, text: obj }); return out; }
+    if (Array.isArray(obj)) { obj.forEach((v, i) => flatten(v, prefix ? prefix + '.' + i : String(i), out)); return out; }
+    if (obj && typeof obj === 'object') {
+      for (const [k, v] of Object.entries(obj)) { if (k === 'buttonUrl') continue; flatten(v, prefix ? prefix + '.' + k : k, out); }
+    }
+    return out;
+  }
+  function getPath(obj, path) {
+    let cur = obj;
+    for (const k of String(path).split('.')) { if (cur == null) return undefined; cur = cur[k]; }
+    return cur;
+  }
+  function setPath(obj, path, val) {
+    const keys = String(path).split('.');
+    let cur = obj;
+    for (let i = 0; i < keys.length - 1; i++) {
+      const k = keys[i], nextIsIdx = /^\d+$/.test(keys[i + 1]);
+      if (cur[k] == null || typeof cur[k] !== 'object') cur[k] = nextIsIdx ? [] : {};
+      cur = cur[k];
+    }
+    cur[keys[keys.length - 1]] = val;
+  }
+  function fieldsHash(type, fields) {
+    const flat = flatten(normalizeFields(type, fields)).map((x) => x.path + '=' + x.text).join('\n');
+    let h = 0x811c9dc5;
+    for (let i = 0; i < flat.length; i++) { h ^= flat.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16);
+  }
+  const needsTranslation = (block) => flatten(block.fields).length > 0;
+  const getLangData = (project, lang) => (project && project.i18n && project.i18n.data && project.i18n.data[lang]) || null;
+  const getTr = (project, lang, type) => { const d = getLangData(project, lang); return (d && d.blocks && d.blocks[type]) || null; };
+
+  // 블록 하나의 번역 상태: n/a | none | stale | ai | edited | review | approved
+  function trStatus(project, lang, block) {
+    if (!needsTranslation(block)) return 'n/a';
+    const rec = getTr(project, lang, block.type);
+    if (!rec) return 'none';
+    if (rec.srcHash !== fieldsHash(block.type, block.fields)) return 'stale';
+    return rec.status;
+  }
+
+  // 특정 언어로 보이는 블록(번역문·언어별 이미지·언어별 숨김 반영).
+  // 번역 레코드는 '경로 → 문장' 평면 맵이라 구조가 항상 원문과 같다. 번역이 없는 경로는 한국어 원문을 그대로 보여 주고 점검에서 경고한다.
+  function applyTr(type, koFields, tmap) {
+    const out = JSON.parse(JSON.stringify(koFields));
+    for (const { path } of flatten(koFields)) {
+      const v = tmap && tmap[path];
+      if (typeof v === 'string' && v.trim()) setPath(out, path, v);
+    }
+    return out;
+  }
+  function localizeBlock(project, lang, block) {
+    if (!lang || lang === 'ko') return block;
+    const d = getLangData(project, lang) || {};
+    const rec = d.blocks && d.blocks[block.type];
+    let fields = block.fields;
+    if (rec) {
+      fields = applyTr(block.type, block.fields, rec.t);
+      if (block.type === 'cta') fields.buttonUrl = (d.market && d.market.buyUrl) || block.fields.buttonUrl || '';
+    }
+    const images = block.images.map((s) => {
+      const o = d.imgs && d.imgs[block.type + ':' + s.key];
+      return o ? { ...s, assetId: o.assetId, source: o.source, deleted: false } : s;
+    });
+    const hidden = !!(block.hidden || (d.hidden && d.hidden[block.type]));
+    return { ...block, fields, images, hidden, __untranslated: !rec && needsTranslation(block) };
+  }
+
+  const PATH_WORDS = {
+    title: '제목', desc: '설명', items: '항목', steps: '단계', faqs: '질문', specs: '규격', rows: '핵심 정보', points: '고객 고민', body: '본문', text: '문장',
+    subtitle: '보조 문구', caption: '설명', kicker: '작은 제목', eyebrow: '분류', badge: '배지', label: '항목명', value: '내용', q: '질문', a: '답변',
+    buttonLabel: '버튼 문구', specTitle: '규격 제목',
+  };
+  // 'items.0.title' → '항목 › 1 › 제목' (사람이 읽는 항목 이름)
+  function prettyPath(path) {
+    return String(path).split('.').map((k) => (/^\d+$/.test(k) ? String(Number(k) + 1) : (PATH_WORDS[k] || k))).join(' › ');
+  }
+
+  const HANGUL = /[ᄀ-ᇿㄱ-ㆎ가-힣]/;
+  const normNum = (t) => String(t).normalize('NFKC');
+  function numTokens(text) {
+    const out = [];
+    for (const m of normNum(text).matchAll(/\d+(?:[.,]\d+)*/g)) out.push(m[0].replace(/,/g, ''));
+    return out;
+  }
+
+  // 번역 품질 자동 점검: 누락·숫자 불일치·한글 잔존·용어집·길이. 사람이 검수할 때 우선 볼 곳을 알려 준다.
+  function qaCheck(project, lang, block) {
+    const rec = getTr(project, lang, block.type);
+    if (!rec || !needsTranslation(block)) return [];
+    const d = getLangData(project, lang) || {};
+    const market = d.market || {};
+    const glossary = (project.i18n && project.i18n.glossary) || [];
+    const meta = LANG_BY[lang] || {};
+    const warns = [];
+    const koFlat = flatten(block.fields);
+    const trFlat = rec.t || {};
+    const dntKo = glossary.filter((g) => g.dnt && g.ko).map((g) => g.ko);
+    const productName = project.product && project.product.name;
+    for (const { path, text: ko } of koFlat) {
+      const tr = trFlat[path];
+      if (!tr || !String(tr).trim()) { warns.push({ code: 'missing', path, msg: '번역이 비어 있습니다' }); continue; }
+      // 숫자: 원문의 숫자가 번역문에 그대로 있어야 한다(가격은 현지 가격 입력 시 제외, 한글 단위 만·천·억 포함은 제외)
+      const skipNum = /\d\s*[만천억]/.test(ko) || (market.price && /[원₩]|KRW/.test(ko));
+      if (!skipNum) {
+        const have = new Set(numTokens(tr));
+        const miss = numTokens(ko).filter((n) => !have.has(n));
+        if (miss.length) warns.push({ code: 'number', path, msg: `원문 숫자(${[...new Set(miss)].join(', ')})가 번역문에 없습니다` });
+      }
+      // 한글 잔존(번역 금지 용어의 한글은 제외)
+      let probe = tr;
+      for (const t of dntKo) probe = probe.split(t).join('');
+      if (productName) probe = probe.split(productName).join('');
+      if (HANGUL.test(probe)) warns.push({ code: 'hangul', path, msg: '번역문에 한글이 남아 있습니다' });
+      // 길이: 레이아웃이 깨질 만큼 길어졌는지
+      const limit = meta.wrap === 'latin' ? 2.8 : 1.8;
+      if (ko.length >= 20 && tr.length > ko.length * limit) warns.push({ code: 'long', path, msg: '원문보다 훨씬 길어 레이아웃이 어긋날 수 있습니다' });
+      // 용어집
+      for (const g of glossary) {
+        if (!g.ko || !ko.includes(g.ko)) continue;
+        if (g.dnt) { if (!tr.includes(g.ko)) warns.push({ code: 'dnt', path, msg: `번역 금지 용어 ‘${g.ko}’가 그대로 있어야 합니다` }); }
+        else if (g.tr && g.tr[lang] && !tr.toLowerCase().includes(String(g.tr[lang]).toLowerCase())) warns.push({ code: 'glossary', path, msg: `용어집 불일치: ‘${g.ko}’ → ‘${g.tr[lang]}’ (으)로 번역해야 합니다` });
+      }
+      // 현지 상품명
+      if (market.name && productName && ko.includes(productName) && !tr.includes(market.name)) warns.push({ code: 'name', path, msg: `현지 상품명 ‘${market.name}’ 사용 필요` });
+    }
+    // 항목 수가 원문과 다르면 구조 불일치
+    const koPaths = new Set(koFlat.map((x) => x.path));
+    const extra = Object.keys(trFlat).filter((k) => !koPaths.has(k) && String(trFlat[k]).trim());
+    if (extra.length) warns.push({ code: 'structure', path: extra[0], msg: '원문에 없는 항목이 번역에 있습니다' });
+    return warns;
+  }
+
+  // 한 언어의 진행 요약(내보내기 대상 블록 기준)
+  function langSummary(project, lang) {
+    const out = { total: 0, none: 0, stale: 0, ai: 0, edited: 0, review: 0, approved: 0, warnings: 0, warningsOpen: 0 };
+    for (const b of project.blocks) {
+      const lb = localizeBlock(project, lang, b);
+      if (lb.hidden || !needsTranslation(b)) continue;
+      out.total += 1;
+      const st = trStatus(project, lang, b);
+      out[st] += 1;
+      // 검수 완료된 블록의 경고는 검수자가 수용한 것으로 보고, 저장 확인(warningsOpen)에는 반영하지 않는다.
+      if (qaCheck(project, lang, b).length) { out.warnings += 1; if (st !== 'approved') out.warningsOpen += 1; }
+    }
+    out.ready = out.total > 0 && out.approved === out.total;
+    return out;
+  }
+
+  function sanitizeTrMap(m) {
+    const out = {};
+    if (m && typeof m === 'object') {
+      for (const [k, v] of Object.entries(m)) {
+        if (/^[A-Za-z0-9_.]{1,60}$/.test(k) && typeof v === 'string') out[k] = str(v, 4500);
+      }
+    }
+    return out;
+  }
+  function sanitizeTr(type, rec) {
+    if (!rec || typeof rec !== 'object') return null;
+    void type;
+    return {
+      t: sanitizeTrMap(rec.t),
+      ai: rec.ai ? sanitizeTrMap(rec.ai) : null,
+      status: TR_STATUS.includes(rec.status) ? rec.status : 'ai',
+      srcHash: S(rec.srcHash, 16),
+      note: S(rec.note, 1000), by: S(rec.by, 60), at: S(rec.at, 40), updatedAt: S(rec.updatedAt, 40),
+    };
+  }
+  function sanitizeLangData(d) {
+    d = d && typeof d === 'object' ? d : {};
+    const blocks = {};
+    for (const t of TYPE_SET) { const r = sanitizeTr(t, d.blocks && d.blocks[t]); if (r) blocks[t] = r; }
+    const imgs = {};
+    if (d.imgs && typeof d.imgs === 'object') {
+      for (const [k, v] of Object.entries(d.imgs)) {
+        const [t, key] = k.split(':');
+        if (TYPE_SET.has(t) && /^[a-z0-9]{1,12}$/.test(key || '') && v && typeof v.assetId === 'string' && ID_RE.test(v.assetId)) imgs[k] = { assetId: v.assetId, source: v.source === 'photo' ? 'photo' : 'user' };
+      }
+    }
+    const hidden = {};
+    if (d.hidden && typeof d.hidden === 'object') for (const t of TYPE_SET) if (d.hidden[t]) hidden[t] = true;
+    const m = d.market && typeof d.market === 'object' ? d.market : {};
+    return {
+      blocks, imgs, hidden,
+      market: { name: S(m.name, 200), price: S(m.price, 200), shipping: S(m.shipping, 500), promo: S(m.promo, 500), buyUrl: S(m.buyUrl, 500), notes: S(m.notes, 1000) },
+      reviewer: S(d.reviewer, 60),
+    };
+  }
+  function sanitizeI18n(raw) {
+    raw = raw && typeof raw === 'object' ? raw : {};
+    const langs = [];
+    for (const c of Array.isArray(raw.langs) ? raw.langs : []) if (LANG_BY[c] && !LANG_BY[c].source && !langs.includes(c)) langs.push(c);
+    const data = {};
+    for (const c of langs) data[c] = sanitizeLangData(raw.data && raw.data[c]);
+    const glossary = list(raw.glossary, 200, (g) => {
+      if (!g || typeof g !== 'object') return null;
+      const ko = S(g.ko, 80);
+      if (!ko) return null;
+      const tr = {};
+      for (const l of TARGET_LANGS) { const v = S(g.tr && g.tr[l.code], 120); if (v) tr[l.code] = v; }
+      return { id: typeof g.id === 'string' && ID_RE.test(g.id) ? g.id : newId('g'), ko, dnt: !!g.dnt, tr };
+    });
+    return { langs, data, glossary, strict: !!raw.strict };
   }
 
   // ───────────── 기본 구성(AI 없이도 만들 수 있다) ─────────────
@@ -325,5 +559,7 @@
     newId, str, splitSentences, firstSentence, pickPalette, mergePalette, contrast, isHex,
     normalizeFields, emptyFields, makeSlots, blockHasContent,
     sanitizeBlock, sanitizeBrief, sanitizeProduct, sanitizeProject, buildBlocks, parsePairs,
+    LANGS, LANG_BY, TARGET_LANGS, TR_STATUS, STATUS_LABEL, TR_SCALE,
+    flatten, getPath, setPath, applyTr, prettyPath, fieldsHash, needsTranslation, getLangData, getTr, trStatus, localizeBlock, qaCheck, langSummary, sanitizeI18n, sanitizeTr,
   };
 });

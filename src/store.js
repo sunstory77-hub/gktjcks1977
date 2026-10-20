@@ -204,6 +204,7 @@ class Store {
     const ids = new Set();
     p.photos.forEach((x) => ids.add(x.assetId));
     p.blocks.forEach((b) => b.images.forEach((s) => s.assetId && ids.add(s.assetId)));
+    for (const d of Object.values((p.i18n && p.i18n.data) || {})) for (const o of Object.values(d.imgs || {})) if (o.assetId) ids.add(o.assetId);
     return [...ids];
   }
 
@@ -252,6 +253,7 @@ class Store {
       // 이미지가 없는 항목은 참조를 제거한다.
       p.photos = p.photos.filter((x) => !missing.includes(x.assetId));
       p.blocks.forEach((b) => b.images.forEach((s) => { if (missing.includes(s.assetId)) { s.assetId = null; s.source = 'none'; } }));
+      for (const d of Object.values((p.i18n && p.i18n.data) || {})) for (const [k, o] of Object.entries(d.imgs || {})) if (missing.includes(o.assetId)) delete d.imgs[k];
       await atomicWrite(this.pfile(p.id), JSON.stringify(p));
     } catch (e) {
       await fsp.rm(this.pdir(p.id), { recursive: true, force: true });

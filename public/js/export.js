@@ -9,24 +9,27 @@
     try { await Promise.all([400, 500, 600, 700, 800].map((w) => document.fonts.load(`${w} 24px "Pretendard Variable"`, '가나다라abc123'))); } catch { /* 글꼴이 없으면 대체 글꼴 */ }
   };
 
-  const usedSlots = () => {
+  const usedSlots = (lang) => {
     const out = [];
-    DPA.visibleBlocks().forEach((b) => b.images.forEach((s, i) => { if (DPA.slotVisible(s)) out.push({ b, s, i }); }));
+    DPA.visibleBlocks(lang).forEach((b) => b.images.forEach((s, i) => { if (DPA.slotVisible(s)) out.push({ b, s, i }); }));
     return out;
   };
+  const langTag = (lang) => (lang === 'ko' ? '' : '_' + lang);
 
   // ───────────── JPG ─────────────
-  async function exportJpg(hi, say) {
+  // 언어별 JPG 를 만들어 [{ name, blob }] 로 돌려준다(저장은 호출한 쪽에서 한다).
+  async function buildJpgs(hi, say, lang) {
     await DPA.ensureFonts();
-    const blocks = DPA.visibleBlocks();
+    await DPA.loadLangFonts(lang);
+    const blocks = DPA.visibleBlocks(lang);
     if (!blocks.length) throw new Error('저장할 블록이 없습니다. 먼저 상세페이지를 만들어 주세요.');
-    const aids = [...new Set(usedSlots().map((x) => x.s.assetId))];
+    const aids = [...new Set(usedSlots(lang).map((x) => x.s.assetId))];
     say(`이미지 ${aids.length}장 불러오는 중…`);
     const res = await Promise.allSettled(aids.map((a) => DPA.loadImage(a)));
     const bad = res.filter((r) => r.status === 'rejected').length;
     if (bad) throw new Error(`이미지 ${bad}장을 불러오지 못해 저장을 중단했습니다. 해당 이미지를 교체하거나 삭제한 뒤 다시 시도해 주세요.`);
     const scale = hi ? 2 : 1;
-    const base = { brief: DPA.project.brief, getImage: DPA.getImage, preview: false, pending: new Set() };
+    const base = { brief: DPA.project.brief, getImage: DPA.getImage, preview: false, pending: new Set(), lang };
     say('높이 계산 중…');
     const heights = blocks.map((b) => R.renderBlock(b, { ...base, scale: 1 }).height);
     const limit = Math.floor(30000 / scale);
@@ -37,9 +40,10 @@
       if (acc + heights[i] > limit && parts[parts.length - 1].length) { parts.push([]); acc = 0; }
       parts[parts.length - 1].push(i); acc += heights[i];
     });
-    const files = [];
+    const out = [];
+    const nm = DPA.safeName(DPA.project.name);
     for (let pi = 0; pi < parts.length; pi++) {
-      say(`JPG 만드는 중… (${pi + 1}/${parts.length})`);
+      say(`${lang === 'ko' ? '' : S.LANG_BY[lang].native + ' '}JPG 만드는 중… (${pi + 1}/${parts.length})`);
       const idx = parts[pi];
       const total = idx.reduce((n, i) => n + heights[i], 0);
       const cv = document.createElement('canvas');
@@ -56,18 +60,36 @@
       }
       const blob = await new Promise((resolve) => cv.toBlob(resolve, 'image/jpeg', 0.92));
       if (!blob || blob.size < 1000) throw new Error('JPG를 만들지 못했습니다. 고해상도를 끄고 다시 시도해 주세요.');
-      files.push(blob);
+      out.push({ name: `${nm}_상세페이지${langTag(lang)}_${DPA.ymd()}${parts.length > 1 ? '_' + (pi + 1) : ''}.jpg`, blob, width: R.W * scale, height: total * scale });
     }
-    const nm = DPA.safeName(DPA.project.name);
-    files.forEach((blob, i) => DPA.saveBlob(blob, `${nm}_상세페이지_${DPA.ymd()}${files.length > 1 ? '_' + (i + 1) : ''}.jpg`));
-    return { files: files.length, width: R.W * scale, height: parts.map((p) => p.reduce((n, i) => n + heights[i], 0) * scale) };
+    return out;
   }
-  DPA.exportJpg = exportJpg;
+  DPA.buildJpgs = buildJpgs;
+
+  // 번역이 덜 된 언어는 저장 전에 알리고(설정에 따라 막고) 확인받는다.
+  DPA.exportGate = async function (lang) {
+    if (lang === 'ko') return true;
+    const p = DPA.project, name = S.LANG_BY[lang].name;
+    const s = S.langSummary(p, lang);
+    const problems = [];
+    if (s.none) problems.push(`번역되지 않은 블록 ${s.none}개 (한국어 그대로 출력됩니다)`);
+    if (s.stale) problems.push(`한국어 원문이 바뀐 뒤 확인하지 않은 블록 ${s.stale}개`);
+    const unreviewed = s.ai + s.edited + s.review;
+    if (unreviewed) problems.push(`검수가 끝나지 않은 블록 ${unreviewed}개 (AI 초안 ${s.ai} · 직접 수정 ${s.edited} · 검수 요청 ${s.review})`);
+    if (s.warningsOpen) problems.push(`자동 점검 경고가 있는 블록 ${s.warningsOpen}개`);
+    if (!problems.length) return true;
+    if (p.i18n.strict) {
+      await DPA.confirm(`${name}는 ‘내보내기 전 검수 완료 필수’ 설정이라 저장할 수 없습니다.\n\n· ${problems.join('\n· ')}\n\n전문 번역 검수를 마치거나, 번역 언어 화면에서 이 설정을 끄세요.`, { title: '검수가 필요합니다', okText: '확인', cancelText: '닫기' });
+      return false;
+    }
+    return DPA.confirm(`${name} 번역에 확인되지 않은 항목이 있습니다.\n\n· ${problems.join('\n· ')}\n\n그래도 저장할까요?`, { title: '검수 확인', okText: '그래도 저장', danger: true });
+  };
 
   // ───────────── ZIP ─────────────
-  async function exportZip(say) {
-    const list = usedSlots();
-    const cta = DPA.visibleBlocks().find((b) => b.type === 'cta' && b.fields.buttonUrl);
+  async function collectZipFiles(say, lang, prefix) {
+    const list = usedSlots(lang);
+    const vis = DPA.visibleBlocks(lang);
+    const cta = vis.find((b) => b.type === 'cta' && b.fields.buttonUrl);
     if (!list.length) throw new Error('저장할 이미지가 없습니다. (숨긴 블록과 삭제한 이미지는 제외됩니다)');
     const files = [];
     const counter = {};
@@ -79,13 +101,18 @@
       const type = r.headers.get('content-type') || '';
       const ext = /png/.test(type) ? 'png' : /webp/.test(type) ? 'webp' : 'jpg';
       const k = (counter[b.id] = (counter[b.id] || 0) + 1);
-      const pos = DPA.visibleBlocks().indexOf(b) + 1;
-      files.push({ name: `${String(pos).padStart(2, '0')}_${S.LABELS[b.type].replace(/[·\s]/g, '')}_${k}.${ext}`, data: new Uint8Array(await r.arrayBuffer()) });
+      const pos = vis.indexOf(b) + 1;
+      files.push({ name: `${prefix}${String(pos).padStart(2, '0')}_${S.LABELS[b.type].replace(/[·\s]/g, '')}_${k}.${ext}`, data: new Uint8Array(await r.arrayBuffer()) });
     }
-    if (cta) files.push({ name: '구매링크.txt', data: new TextEncoder().encode(cta.fields.buttonUrl + '\n') });
+    if (cta) files.push({ name: `${prefix}구매링크.txt`, data: new TextEncoder().encode(cta.fields.buttonUrl + '\n') });
+    return files;
+  }
+  async function exportZip(say, langs) {
+    const files = [];
+    for (const lang of langs) files.push(...(await collectZipFiles(say, lang, langs.length > 1 ? `${lang}/` : '')));
     const blob = DPA.ZIP.makeZip(files);
-    DPA.saveBlob(blob, `${DPA.safeName(DPA.project.name)}_이미지_${DPA.ymd()}.zip`);
-    return { count: list.length, size: blob.size };
+    DPA.saveBlob(blob, `${DPA.safeName(DPA.project.name)}_이미지${langs.length === 1 ? langTag(langs[0]) : '_전체언어'}_${DPA.ymd()}.zip`);
+    return { count: files.length, size: blob.size };
   }
 
   // ───────────── JSON 백업·복원 ─────────────
@@ -105,34 +132,65 @@
 
   function fmtSize(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
 
-  DPA.openExport = function () {
-    const vis = DPA.visibleBlocks();
-    const imgs = usedSlots().length;
+  DPA.openExport = function (opts) {
+    opts = opts || {};
+    const p = DPA.project;
+    const all = ['ko', ...p.i18n.langs];
+    const picked = new Set([opts.lang && all.includes(opts.lang) ? opts.lang : (all.includes(DPA.lang) ? DPA.lang : 'ko')]);
     const statusEl = h('p', { class: 'hint', role: 'status', text: '' });
     const say = (t) => { statusEl.textContent = t; };
     const hi = h('input', { type: 'checkbox', id: 'optHi' });
+    const sumEl = h('p', { class: 'hint' });
+    const refresh = () => {
+      const ls = all.filter((c) => picked.has(c));
+      const parts = ls.map((c) => `${c === 'ko' ? '한국어' : S.LANG_BY[c].native} ${DPA.visibleBlocks(c).length}블록·이미지 ${usedSlots(c).length}장`);
+      sumEl.textContent = ls.length ? `${parts.join(' / ')}. 숨긴 블록과 삭제한 이미지는 저장되지 않습니다.` : '저장할 언어를 선택해 주세요.';
+      jpgBtn.disabled = zipBtn.disabled = !ls.length || ls.every((c) => !DPA.visibleBlocks(c).length);
+    };
     const run = (btn, fn) => async () => {
       btn.disabled = true;
-      try { await fn(); } catch (e) { say(''); toast(DPA.errMsg(e), 'err'); } finally { btn.disabled = false; }
+      try { await fn(); } catch (e) { say(''); toast(DPA.errMsg(e), 'err'); } finally { btn.disabled = false; refresh(); }
     };
-    const jpgBtn = h('button', { class: 'btn primary wide', text: '전체 상세페이지 JPG 저장' });
-    jpgBtn.onclick = run(jpgBtn, async () => { const r = await exportJpg(hi.checked, say); say(`저장했습니다. JPG ${r.files}개 · 가로 ${r.width}px`); toast('JPG로 저장했습니다.', 'ok'); });
+    const jpgBtn = h('button', { class: 'btn primary wide', text: '상세페이지 JPG 저장' });
+    jpgBtn.onclick = run(jpgBtn, async () => {
+      const ls = all.filter((c) => picked.has(c));
+      for (const c of ls) if (!(await DPA.exportGate(c))) { say('검수가 필요해 저장하지 않았습니다.'); return; }
+      const made = [];
+      for (const c of ls) made.push(...(await buildJpgs(hi.checked, say, c)));
+      if (ls.length === 1) { made.forEach((f) => DPA.saveBlob(f.blob, f.name)); say(`저장했습니다. JPG ${made.length}개 · 가로 ${made[0].width}px`); }
+      else {
+        say('ZIP으로 묶는 중…');
+        const files = [];
+        for (const f of made) files.push({ name: f.name, data: new Uint8Array(await f.blob.arrayBuffer()) });
+        const zip = DPA.ZIP.makeZip(files);
+        DPA.saveBlob(zip, `${DPA.safeName(p.name)}_상세페이지_전체언어_${DPA.ymd()}.zip`);
+        say(`저장했습니다. ${ls.length}개 언어 JPG ${made.length}개를 ZIP 하나로 묶었습니다.`);
+      }
+      toast('JPG로 저장했습니다.', 'ok');
+    });
     const zipBtn = h('button', { class: 'btn wide', text: '사용 중인 이미지 ZIP 저장' });
-    zipBtn.onclick = run(zipBtn, async () => { const r = await exportZip(say); say(`저장했습니다. 이미지 ${r.count}장 (${fmtSize(r.size)})`); toast('ZIP으로 저장했습니다.', 'ok'); });
+    zipBtn.onclick = run(zipBtn, async () => {
+      const ls = all.filter((c) => picked.has(c));
+      for (const c of ls) if (!(await DPA.exportGate(c))) { say('검수가 필요해 저장하지 않았습니다.'); return; }
+      const r = await exportZip(say, ls); say(`저장했습니다. 파일 ${r.count}개 (${fmtSize(r.size)})`); toast('ZIP으로 저장했습니다.', 'ok');
+    });
     const jsonBtn = h('button', { class: 'btn wide', text: '프로젝트 백업(JSON) 저장' });
-    jsonBtn.onclick = run(jsonBtn, async () => { const n = await exportBackup(); say(`백업을 저장했습니다 (${fmtSize(n)}). API 키는 포함되지 않습니다.`); });
+    jsonBtn.onclick = run(jsonBtn, async () => { const n = await exportBackup(); say(`백업을 저장했습니다 (${fmtSize(n)}). 번역·검수 기록이 포함되며 API 키는 포함되지 않습니다.`); });
     const file = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: async (e) => { const f = e.target.files[0]; e.target.value = ''; try { await importBackup(f); m.close(); } catch (er) { toast(DPA.errMsg(er), 'err'); } } });
+    const langBox = all.length > 1 ? h('div', { class: 'f' }, h('span', { text: '저장할 언어' }), h('div', { class: 'row wrap' }, ...all.map((c) => {
+      const st = c === 'ko' ? null : S.langSummary(p, c);
+      return h('label', { class: 'chk inline' }, h('input', { type: 'checkbox', checked: picked.has(c), onchange: (e) => { if (e.target.checked) picked.add(c); else picked.delete(c); refresh(); } }), h('span', { text: c === 'ko' ? '한국어' : S.LANG_BY[c].native }), st ? h('i', { class: 'ldot ' + (st.ready ? 'ok' : st.none === st.total ? 'none' : 'part'), title: st.ready ? '검수 완료' : '검수 필요' }) : null);
+    }))) : null;
     const m = modal({
       title: '저장·내보내기',
       body: h('div', { class: 'stack' },
-        h('p', { class: 'hint', text: vis.length ? `보이는 블록 ${vis.length}개 · 사용 이미지 ${imgs}장. 숨긴 블록과 삭제한 이미지는 저장되지 않습니다.` : '아직 저장할 상세페이지가 없습니다. JSON 복원은 가능합니다.' }),
-        jpgBtn,
+        langBox, sumEl, jpgBtn,
         h('label', { class: 'chk' }, hi, h('span', { text: '고해상도(가로 1720px, 용량이 커집니다)' })),
         zipBtn, jsonBtn,
         h('button', { class: 'btn wide', text: '백업 파일에서 복원', onclick: () => file.click() }), file,
         statusEl),
     });
-    if (!vis.length) { jpgBtn.disabled = true; zipBtn.disabled = true; }
+    refresh();
   };
 
   // ───────────── 프로젝트 ─────────────

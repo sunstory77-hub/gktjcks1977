@@ -205,4 +205,30 @@ function stripMarkdown(text) {
     .trim();
 }
 
-module.exports = { stripMarkdown, parseJsonLoose, toReadableText, extractFacts, preserveFacts, normalizeOrganize, normalizePlan, normalizeEditText, sectionsToText, SECTION_DEFS, defaultPrompt };
+// 번역 응답 → { blocks:{ type:{ t:{path:문장} } }, total, missing }. 경로는 원문에 있는 것만 받아 구조를 원문과 같게 유지한다.
+function normalizeTranslation(raw, source) {
+  const data = parseJsonLoose(raw);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw badResponse('AI 응답에서 번역 결과를 읽지 못했습니다.');
+  let list = data.blocks;
+  if (list && !Array.isArray(list) && typeof list === 'object') list = Object.entries(list).map(([type, v]) => ({ type, ...(v && typeof v === 'object' ? v : {}) }));
+  if (!Array.isArray(list)) throw badResponse('AI 응답에 번역된 블록이 없습니다.');
+  const blocks = {};
+  let total = 0, got = 0;
+  for (const src of source) {
+    const hit = list.find((b) => b && b.type === src.type);
+    let segs = hit && (hit.segments || hit.t || hit.translations || hit.fields);
+    if (Array.isArray(segs)) segs = Object.fromEntries(segs.filter((x) => x && x.path).map((x) => [x.path, x.text != null ? x.text : x.translation]));
+    const t = {};
+    for (const path of Object.keys(src.segments)) {
+      total += 1;
+      const v = segs && typeof segs === 'object' ? segs[path] : undefined;
+      const text = typeof v === 'string' ? v : (typeof v === 'number' ? String(v) : '');
+      if (text.trim()) { t[path] = S.str(text, 4500); got += 1; }
+    }
+    if (Object.keys(t).length) blocks[src.type] = { t };
+  }
+  if (!got) throw badResponse('AI 응답에 번역된 문장이 없습니다.');
+  return { blocks, total, missing: total - got };
+}
+
+module.exports = { normalizeTranslation, stripMarkdown, parseJsonLoose, toReadableText, extractFacts, preserveFacts, normalizeOrganize, normalizePlan, normalizeEditText, sectionsToText, SECTION_DEFS, defaultPrompt };

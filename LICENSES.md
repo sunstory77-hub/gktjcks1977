@@ -7,6 +7,7 @@ DETAIL PAGE AI © BAPI. 자체 코드(서버, 화면, 렌더러, ZIP 생성기)�
 | 구성 요소 | 용도 | 라이선스 | 비고 |
 |---|---|---|---|
 | Pretendard Variable (Kil Hyung-jin) | 화면·상세페이지 글꼴 | SIL Open Font License 1.1 | 상업적 이용·재배포 가능. 전문: `app/public/fonts/Pretendard-LICENSE-OFL.txt`. 글꼴 이름(Pretendard)을 바꾸지 않고 원본 그대로 포함. |
+| Noto Sans JP Variable · Noto Sans SC Variable (Google, Fontsource 5.3.1 배포본) | 일본어·중국어(간체) 상세페이지 글꼴 | SIL Open Font License 1.1 (상업적 이용 가능) | 전문: `app/public/fonts/noto-sans-jp/LICENSE-OFL.txt`, `app/public/fonts/noto-sans-sc/LICENSE-OFL.txt`. 원본 그대로 포함(이름 변경·수정 없음). |
 | Node.js v22.22.0 (win-x64) | 프로그램 실행 환경 | MIT 및 포함 라이브러리(V8, OpenSSL, ICU, zlib, undici 등) 라이선스 | 전문: `runtime/LICENSE-node.txt` |
 | NSIS 3.09 (설치 파일 생성 도구) | 설치·실행기 stub 이 설치 파일에 포함 | zlib/libpng 라이선스 | https://nsis.sourceforge.io/License |
 

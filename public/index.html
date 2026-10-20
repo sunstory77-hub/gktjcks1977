@@ -10,6 +10,8 @@
 <title>DETAIL PAGE AI · by BAPI</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/fonts/noto-sans-jp/index.css">
+<link rel="stylesheet" href="/fonts/noto-sans-sc/index.css">
 </head>
 <body class="show-input">
 <a class="skip" href="#panelInput">본문으로 건너뛰기</a>
@@ -88,6 +90,7 @@
       </div>
       <div class="pv-r"><span id="pageSummary" class="hint"></span><span id="saveState" class="save" data-state="idle" role="status"></span></div>
     </div>
+    <div id="langBar" class="langbar"></div>
     <div id="genStatus" hidden></div>
     <div id="emptyState" class="empty">
       <div class="empty-i" aria-hidden="true">▤</div>
@@ -111,6 +114,8 @@
 <script src="/js/ai.js"></script>
 <script src="/js/product.js"></script>
 <script src="/js/preview.js"></script>
+<script src="/js/i18n.js"></script>
+<script src="/js/i18n-modals.js"></script>
 <script src="/js/export.js"></script>
 <script src="/js/main.js"></script>
 </body>
