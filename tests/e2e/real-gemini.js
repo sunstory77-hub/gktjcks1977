@@ -94,13 +94,41 @@ const cleanup = async () => { try { if (browser) await browser.close(); } catch 
   await page.screenshot({ path: path.join(OUT, 'generated.png') });
 
   await page.click('#btnExport');
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("전체 상세페이지 JPG 저장")')]);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('dialog[open] button:text-is("상세페이지 JPG 저장")')]);
   await dl.saveAs(path.join(OUT, 'page.jpg'));
   lap('JPG 저장: ' + fs.statSync(path.join(OUT, 'page.jpg')).size + ' bytes');
   lap('콘솔 오류: ' + JSON.stringify(errors));
   const leaks = [];
   const walk = (d) => { for (const n of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, n.name); n.isDirectory() ? walk(f) : leaks.push(f); } };
   walk(dataDir);
+  // 다국어(I18N=1): 생성된 실제 한국어 문구 전체를 영·일·중으로 번역하고 언어별 JPG·검수 패키지를 만든다.
+  if (process.env.I18N) {
+    await page.evaluate(() => DPA.mutate((pr) => {
+      pr.i18n.langs = ['en', 'ja', 'zh-CN'];
+      pr.i18n.glossary = [{ id: 'g_0000000000000001', ko: '한라봉', dnt: false, tr: { en: 'Hallabong', ja: 'ハルラボン', 'zh-CN': '汉拿峰' } }, { id: 'g_0000000000000002', ko: '제주', dnt: false, tr: { en: 'Jeju', ja: '済州', 'zh-CN': '济州' } }];
+      const mk = { en: { name: 'Jeju Hallabong Juice 200ml x 12', price: '$24.90' }, ja: { name: '済州ハルラボンジュース 200ml×12本', price: '¥3,200' }, 'zh-CN': { name: '济州汉拿峰果汁 200ml×12瓶', price: '¥128' } };
+      for (const l of pr.i18n.langs) { pr.i18n.data[l] = pr.i18n.data[l] || { blocks: {}, imgs: {}, hidden: {}, market: {}, reviewer: '' }; pr.i18n.data[l].market = { ...pr.i18n.data[l].market, ...mk[l] }; }
+    }, null, 'all'));
+    await page.evaluate(() => DPA.renderLangBar());
+    const S = require('../../public/js/schema.js');
+    for (const lang of ['en', 'ja', 'zh-CN']) {
+      const tt = Date.now();
+      const done = page.evaluate((l) => DPA.translateLang(l, 'all', { skipConfirm: true, noReconfirm: true }), lang);
+      const r = await done;
+      const pj = await page.evaluate(() => JSON.parse(JSON.stringify(window.DPA.project)));
+      const sum = S.langSummary(pj, lang);
+      lap(`번역 ${lang}: ${r ? '성공' : '실패'} ${((Date.now() - tt) / 1000).toFixed(0)}s ` + JSON.stringify(sum) + ' 알림: ' + JSON.stringify(await toasts()).slice(0, 200));
+      const warns = pj.blocks.filter((b) => S.needsTranslation(b)).flatMap((b) => S.qaCheck(pj, lang, b).map((w) => `${b.type}|${w.path} ${w.code}`));
+      lap(`  자동 점검 경고 ${warns.length}건: ` + warns.join(', '));
+      const d = pj.i18n.data[lang].blocks;
+      for (const b of pj.blocks.filter((x) => !x.hidden && d[x.type])) lap(`  [${b.type}] ` + Object.values(d[b.type].t).join(' ¦ ').slice(0, 260));
+      await page.evaluate(() => document.querySelectorAll('#toasts .toast').forEach((e) => e.remove()));
+      const jpg = await page.evaluate(async (l) => { const out = await DPA.buildJpgs(false, () => {}, l); const b = out[0].blob; const u8 = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return { b64: btoa(s), w: out[0].width, h: out[0].height, n: out.length }; }, lang);
+      fs.writeFileSync(path.join(OUT, `page-${lang}.jpg`), Buffer.from(jpg.b64, 'base64'));
+      lap(`  ${lang} JPG ${jpg.w}x${jpg.h} (${jpg.n}장)`);
+    }
+    fs.writeFileSync(path.join(OUT, 'project-i18n.json'), JSON.stringify(await page.evaluate(() => window.DPA.project), null, 1));
+  }
   lap('키 노출 검사: ' + (leaks.some((f) => fs.readFileSync(f).includes(KEY)) ? '발견됨(문제)' : '없음') + ` (${leaks.length}개 파일)`);
   await cleanup();
 })().catch(async (e) => { console.error('실패:', String(e.message).replace(KEY, '[키]')); await cleanup(); process.exit(1); });

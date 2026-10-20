@@ -1,0 +1,126 @@
+[2s] 연결 결과: Gemini API 연결 / × / 연결되었습니다 / 문구 모델: gemini-3.8-flash / gemini-3.1-pro-preview 이미지 모델: gemini-3.1-flash-image / gemini-3-pro-image / null / 고급: 사용할 모델 직접 선택 / 키는 이 프로그램이 켜져 있는 동안 컴퓨터 메모리에만 보관됩니다. 프로그램을 종료하면 사라지므로 다시 켤 때 새로 연결해 주세요. / 연결 해제 / 완료
+[13s] 정리 성공(395자)
+1. 상품 한눈에 보기
+제주에서 자란 한라봉을 껍질째 착즙하여 물과 설탕 없이 담아낸 100% 한라봉 주스 12입 세트입니다.
+
+2. 핵심 특징
+· 제주산 한라봉을 껍질째 착즙한 100% 주스
+· 설탕과 물 무첨가
+· 1회 음용에 적합한 200ml 소용량 보틀 구성
+
+3. 구성·규격
+용량: 200ml
+구성: 12입
+
+4. 사용·보관 방법
+냉장 보관해 주시고, 개봉 후에는 가급적 빨리 음용하십시오.
+
+5. 구매·배송 정보
+가격: 29,900원
+배송 조건: 3,000원 / 50,000원 이상 무료배송
+
+6. 확인할 사항
+· 정확한 소비기한(유통기한)은 어떻게 되나요?
+· 원재료 및 함량 상세 정보(예: 제주산 한라봉 100%)와 영양성분 정보가 있나요?
+· 적용 가능한 추가 프로모션이나 혜택이 있나요?
+[13s] 고객층 제안: 바쁜 일상으로 아침 식사를 거르기 쉬운 30대 직장인에게 추천합니다.
+[30s] 검색 결과:
+상품 정보 검색 결과
+×
+
+아래 출처를 직접 확인한 뒤 사용해 주세요.
+
+· [확인된 사실] 온라인 유통 시장에서 제주산 과일 100% 착즙 주스 세트(12입 기준)는 약 2만 원대 후반~3만 원대 초반에 형성되어 있어 판매 가격(29,900원)은 유사 상품 시세에 부합합니다.
+· [판매자 정보와 다른 점] 시중의 다수 한라봉 착즙 제품은 껍질을 벗기거나 떫은맛과 단가를 고려해 감귤을 혼합(예: 한라봉+감귤)하는 경우가 흔하나, 판매자 정보에는 '한라봉 단독 껍질째 100% 착즙'으로 기재되어 있습니다.
+· [일반적인 정보] 물과 합성첨가물을 넣지 않은 비농축 착즙(NFC) 주스는 유통기한이 비교적 짧고 변질 우려가 있어 냉장 보관 및 개봉 후 즉시 음용이 권장됩니다.
+· [확인하지 못함] 브랜드명이 특정되지 않아 해당 상품의 HACCP 등 식품 안전 인증 여부는 "확인하지 못함".
+· [확인하지 못함] 영양 성분표 및 건강 기능과 관련된 구체적인 효능은 출처에서 "확인하지 못함"으로 별도 기재하지 않습니다.
+출처
+doorkitchen.info
+kurly.com
+kurly.com
+닫기
+상품 설명 끝에 추가
+[43s] 사진 분석:
+제공해주신 상품 이미지(그래픽 일러스트)를 바탕으로 분석한 내용은 다음과 같습니다.
+
+1. 사진 속 시각 요소 분석
+· 형태 및 외형
+· 모서리가 둥글고 세로로 긴 직사각형 형태의 보틀(병) 디자인입니다.
+· 상단에 각진 사각형 모양의 뚜껑(캡)이 결합된 형태입니다.
+· 실제 실물 사진이 아닌 평면적인 2D 그래픽 일러스트레이션 형태로 표현되어 있습니다.
+· 색상
+· 본체(내용물 또는 용기): 짙은 주황색(오렌지색)
+· 뚜껑: 밝은 회색(연회색)
+· 라벨: 흰색 바탕
+· 그래픽 심볼: 주황색 원형 및 상단 초록색 삼각형
+· 배경: 옅은 아이보리(베이지) 단색
+· 라벨 및 표기 문구
+· 병 중앙에 모서리가 둥근 흰색 사각 라벨이 부착되어 있습니다.
+· 심볼: 한라봉/감귤류를 단순화한 형태(주황색 원 위에 초록색 잎 형태의 삼각형)가 중앙 상단에 배치되어 있습니다.
+· 표기 문구:
+· `HALLABONG`
+· `100% JUICE`
+· (영문 대문자, 산세리프 폰트 적용)
+· 포장 및 
+[43s] 생성 전 안내: 입력한 상품 정보와 상품 사진이 Google Gemini API로 전송됩니다. | 사용량에 따라 Google에서 별도 사용료가 청구될 수 있습니다. (무료 한도, 요금은 Google 정책에 따릅니다) | 사진은 외부로 전송되어도 되는 자료만 사용해 주세요. | 문구 구성 1회 + 이미지 최대 9회 호출합니다. | 사용 모델 — 문구: gemini-3.8-flash / 이미지: gemini-3.1-flash-image | 상품 사진 1장이 참고 자료로 전송됩니다.
+[124s] 생성 종료: 생성이 끝났습니다 / 닫기
+[124s] 블록 12개, AI 이미지 9장, 팔레트 {"id":"plum","bg":"#FBF9F5","surface":"#FFFFFF","tint":"#FFF4E8","ink":"#222222","sub":"#666666","accent":"#F28014","accent2":"#2E7D32","onAccent":"#FFFFFF","radius":24,"dark":false}
+[124s] 카테고리/분위기: 식품 / 과채음료 / 싱그럽고 활기찬 시트러스 무드
+[124s]   [표시] info: {"eyebrow":"제주 과채주스","title":"제주 한라봉 주스 200ml 12입","subtitle":"설탕과 물 없이 한라봉만을 담은 100% 착즙 주스","rows":[{"label":"판매가","value":"29,900원"},{"label":"용량","
+[124s]   [숨김] promo: {"badge":"","title":"","desc":""}
+[124s]   [표시] hero: {"title":"바쁜 아침, 산뜻하게 채우는 한 병","subtitle":"제주 한라봉을 껍질째 착즙해 고유의 진한 풍미를 그대로 담았습니다."}
+[124s]   [표시] headline: {"kicker":"100% 착즙 주스","title":"물과 설탕 없이 완성한 순수한 맛","points":["제주에서 자란 한라봉 100%","설탕과 물을 넣지 않은 착즙","간편하게 챙기는 200ml 소용량"]}
+[124s]   [표시] mood: {"title":"출근길에 더하는 가벼운 생기","text":"아침을 챙기기 어려운 날에도 부담 없이 꺼내 마실 수 있는 든든한 일상의 활력입니다."}
+[124s]   [표시] intro: {"title":"원물 그대로의 신선함을 전합니다","body":"제주에서 자란 한라봉을 껍질째 착즙했습니다. 다른 첨가물 없이 오직 과일만 담아 깔끔하고 진한 과즙 본연의 맛을 전합니다."}
+[124s]   [표시] features: {"title":"한 병에 담아낸 기본 원칙","items":[{"title":"껍질째 착즙한 한라봉","desc":"제주 한라봉을 통째로 착즙하여 깊은 향미를 살렸습니다."},{"title":"무가수·무설탕 원칙","desc":"물과 설탕을 일절 더하지 않아 과일 그
+[124s]   [표시] gallery: {"title":"일상 속에서 즐기는 한 잔","caption":"냉장고에 두고 매일 아침 신선하게 꺼내 드세요."}
+[124s]   [표시] usage: {"title":"신선하게 즐기는 음용 안내","steps":[{"title":"냉장 보관하기","desc":"제품 수령 즉시 냉장 보관하여 신선한 온도를 유지해 주세요."},{"title":"가볍게 흔들어 마시기","desc":"착즙 주스의 특성상 침전물이 있을 수 
+[124s]   [표시] detail: {"title":"보관 및 배송 정보","items":[{"title":"보관 유의사항","desc":"냉장 보관 제품이며, 개봉 후에는 변질 우려가 있으니 신속히 음용해 주세요."},{"title":"배송비 안내","desc":"기본 배송비 3,000원이며, 50,0
+[124s]   [표시] faq: {"title":"자주 묻는 질문","faqs":[{"q":"설탕이나 물이 첨가되어 있나요?","a":"설탕과 물을 넣지 않고 제주 한라봉만을 껍질째 착즙한 100% 주스입니다."},{"q":"보관은 어떻게 해야 하나요?","a":"반드시 냉장 보관해 주시고, 개봉 후
+[124s]   [표시] cta: {"title":"상큼하게 깨어나는 아침","desc":"물과 설탕 없이 담은 제주 한라봉 100% 착즙 주스","buttonLabel":"상품 상세 확인","buttonUrl":""}
+[124s] JPG 저장: 1305618 bytes
+[124s] 콘솔 오류: []
+[153s] 번역 en: 성공 29s {"total":11,"none":0,"stale":0,"ai":11,"edited":0,"review":0,"approved":0,"warnings":2,"warningsOpen":2,"ready":false} 알림: ["English 번역 11개 블록을 만들었습니다. (AI 초안 — 검수가 필요합니다)\n×"]
+[153s]   자동 점검 경고 2건: features|items.2.desc number, faq|faqs.0.a long
+[153s]   [info] Jeju Fruit Juice ¦ Jeju Hallabong Juice 200ml x 12 ¦ 100% pure pressed juice made only with Hallabong—no water or sugar added ¦ Price ¦ $24.90 ¦ Volume ¦ 200ml ¦ Package ¦ 12 pack ¦ Shipping ¦ 3,000 KRW / Free shipping over 50,000 KRW
+[153s]   [hero] A Refreshing Boost for Your Busy Morning ¦ Pressed whole with the peel to capture the rich, authentic flavor of Jeju Hallabong.
+[153s]   [headline] 100% Pure Pressed Juice ¦ Pure Flavor with Zero Added Water or Sugar ¦ 100% Jeju-grown Hallabong ¦ Cold-pressed without added sugar or water ¦ Convenient 200ml compact size
+[153s]   [mood] Light Vitality for Your Daily Commute ¦ An effortless source of daily refreshment you can easily grab and enjoy, even on hectic mornings.
+[153s]   [intro] Delivering the Freshness of Pure Fruit ¦ We press Jeju-grown Hallabong whole with the peel. Made with nothing but fruit and no additives, it delivers a clean, rich, and natural citrus flavor.
+[153s]   [features] Our Standards in Every Bottle ¦ Hallabong Pressed Whole with Peel ¦ Whole Jeju Hallabong is pressed with the peel to preserve its deep citrus aroma. ¦ Zero Added Water or Sugar ¦ No water or sugar is added, letting you enjoy the natural sweetness of pure fruit
+[153s]   [gallery] A Fresh Sip in Your Daily Routine ¦ Keep it chilled in the fridge and grab one fresh every morning.
+[153s]   [usage] How to Enjoy at Peak Freshness ¦ Keep Refrigerated ¦ Refrigerate immediately upon delivery to maintain optimal freshness. ¦ Shake Gently Before Drinking ¦ Natural sediment may settle due to the nature of pure pressed juice, so shake gently before enjoying. ¦ C
+[153s]   [detail] Storage & Shipping Information ¦ Storage Instructions ¦ This product requires refrigeration. To prevent spoilage, please consume promptly after opening. ¦ Shipping Rates ¦ Standard shipping is 3,000 KRW, with free shipping applied on orders over 50,000 KRW.
+[153s]   [faq] Frequently Asked Questions ¦ Are there any added sugars or water? ¦ No. This is 100% juice made by pressing whole Jeju Hallabong with the peel, with absolutely no sugar or water added. ¦ How should I store this product? ¦ Always keep it refrigerated, and drink
+[153s]   [cta] Wake Up to a Refreshing Morning ¦ 100% pure Jeju Hallabong juice with no added water or sugar ¦ View Product Details
+[154s]   en JPG 860x13608 (1장)
+[183s] 번역 ja: 성공 29s {"total":11,"none":0,"stale":0,"ai":11,"edited":0,"review":0,"approved":0,"warnings":0,"warningsOpen":0,"ready":false} 알림: ["日本語 번역 11개 블록을 만들었습니다. (AI 초안 — 검수가 필요합니다)\n×"]
+[183s]   자동 점검 경고 0건: 
+[183s]   [info] 済州 果汁飲料 ¦ 済州ハルラボンジュース 200ml×12本 ¦ 砂糖も水も使わずハルラボンだけを搾った100%ストレートジュース ¦ 販売価格 ¦ ¥3,200 ¦ 内容量 ¦ 200ml ¦ セット内容 ¦ 12本 ¦ 送料 ¦ 3,000ウォン / 50,000ウォン以上送料無料
+[183s]   [hero] 忙しい朝、すっきりと満たす1本 ¦ 済州ハルラボンを皮ごと搾り、本来の濃厚な風味をそのまま詰め込みました。
+[183s]   [headline] 100%ストレートジュース ¦ 水や砂糖を加えず仕上げた純粋な美味しさ ¦ 済州で育ったハルラボン100% ¦ 砂糖・水を一切使わないストレート果汁 ¦ 手軽に楽しめる200mlの飲みきりサイズ
+[183s]   [mood] 通勤時間にプラスする心地よい活力 ¦ 朝食をとる時間がない日でも手軽に飲める、毎日の頼もしいエネルギーチャージです。
+[183s]   [intro] 素材本来の新鮮さをお届けします ¦ 済州で育ったハルラボンを皮ごと搾りました。他の添加物は一切加えず、果実のすっきり濃厚な果汁本来の美味しさをお届けします。
+[183s]   [features] 1本に込めたこだわりの基本原則 ¦ 皮ごと搾ったハルラボン ¦ 済州ハルラボンをまるごと搾ることで、奥深い香りと風味を生かしました。 ¦ 無加水・無砂糖のこだわり ¦ 水や砂糖を一切加えず、果実そのままの自然な甘みをお楽しみいただけます。 ¦ たっぷり楽しめる12本セット ¦ 200mlボトル12本セットで、毎朝手軽に続けられます。
+[183s]   [gallery] 日常の中で楽しむ1杯 ¦ 冷蔵庫にストックして、毎朝新鮮な味わいをお楽しみください。
+[183s]   [usage] 美味しく召し上がるためのご案内 ¦ 冷蔵保存する ¦ 商品受け取り後、すぐに冷蔵庫に入れて新鮮な温度を保ってください。 ¦ 軽く振ってから飲む ¦ ストレートジュースの特性上、沈殿物が生じる場合がありますので、軽く振ってお飲みください。 ¦ 開封後はお早めに ¦ 添加物不使用のジュースですので、開封後はなるべくお早めにお飲みください。
+[183s]   [detail] 保管・配送情報 ¦ 保管上のご注意 ¦ 要冷蔵商品です。開封後は品質が変わる恐れがありますので、お早めにお召し上がりください。 ¦ 送料のご案内 ¦ 基本送料は3,000ウォンで、50,000ウォン以上のご注文で送料無料となります。
+[183s]   [faq] よくあるご質問 ¦ 砂糖や水は入っていますか？ ¦ 砂糖や水を一切加えず、済州ハルラボンだけを皮ごと搾った100%ストレートジュースです。 ¦ 保存方法はどのようにすればよいですか？ ¦ 必ず冷蔵庫で保管し、開封後は新鮮なうちにお早めにお飲みください。 ¦ 送料の基準はどうなっていますか？ ¦ 送料は3,000ウォンで、50,000ウォン以上のご購入で送料無料となります。 ¦ 商品規格サマリー ¦ 商品名 ¦ 済州ハルラボンジュース 200ml×12本 ¦ 内容量 ¦ 200ml ¦ セット内容 ¦ 12本 ¦ 保
+[183s]   [cta] すっきりと目覚める朝 ¦ 水や砂糖を使わず仕上げた、済州ハルラボン100%ストレートジュース ¦ 商品詳細を見る
+[183s]   ja JPG 860x13306 (1장)
+[194s] 번역 zh-CN: 성공 11s {"total":11,"none":0,"stale":0,"ai":11,"edited":0,"review":0,"approved":0,"warnings":0,"warningsOpen":0,"ready":false} 알림: ["简体中文 번역 11개 블록을 만들었습니다. (AI 초안 — 검수가 필요합니다)\n×"]
+[194s]   자동 점검 경고 0건: 
+[194s]   [info] 济州果蔬汁 ¦ 济州汉拿峰果汁 200ml×12瓶 ¦ 不加糖不加水，仅含汉拿峰柑橘的100%鲜榨原汁 ¦ 售价 ¦ ¥128 ¦ 净含量 ¦ 200ml ¦ 规格 ¦ 12瓶 ¦ 运费 ¦ 3,000韩元 / 满50,000韩元包邮
+[194s]   [hero] 忙碌早晨，一瓶轻盈唤醒活力 ¦ 济州汉拿峰带皮鲜榨，完整保留本真浓郁风味。
+[194s]   [headline] 100%鲜榨原汁 ¦ 不加水与糖，成就纯粹本味 ¦ 100%济州产汉拿峰 ¦ 不加糖与水的新鲜压榨 ¦ 200ml小巧便携容量
+[194s]   [mood] 通勤路上，添一份轻盈生机 ¦ 来不及吃早餐的日子，也能随时轻松享用，为日常注入满满元气。
+[194s]   [intro] 传递源自鲜果的原本鲜度 ¦ 精选济州汉拿峰带皮压榨，不添加其他成分，只保留纯粹水果，带来清爽浓郁的原汁本味。
+[194s]   [features] 融于每一瓶的基本准则 ¦ 汉拿峰带皮鲜榨 ¦ 整颗济州汉拿峰直接压榨，留存醇厚香气与风味。 ¦ 坚持不加水·不加糖 ¦ 不额外添加水分与糖分，尽享源自鲜果的自然甘甜。 ¦ 12瓶贴心量贩组合 ¦ 200ml规格共12瓶装，适合每天清晨规律饮用。
+[194s]   [gallery] 点缀日常的美好一杯 ¦ 冷藏储存，每天早晨拿出一瓶享受新鲜。
+[194s]   [usage] 尝鲜饮用指南 ¦ 冷藏保存 ¦ 收到商品后请立即冷藏，以保持适饮鲜度与口感。 ¦ 轻摇后饮用 ¦ 由于是鲜榨原汁，可能出现果肉沉淀，饮用前请轻摇均匀。 ¦ 开封后尽快饮用 ¦ 本品不含添加剂，开盖后请尽早饮用完毕。
+[194s]   [detail] 储存与配送说明 ¦ 储存注意事项 ¦ 本品为冷藏商品，开封后有变质可能，请尽快饮用完毕。 ¦ 运费说明 ¦ 基础运费3,000韩元，订单满50,000韩元享受包邮服务。
+[194s]   [faq] 常见问题 ¦ 是否含有糖或添加水？ ¦ 不加水也不加糖，是由济州汉拿峰带皮直接压榨而成的100%纯果汁。 ¦ 应该如何储存？ ¦ 请务必冷藏储存；开封后为保证新鲜度，请尽早饮用完毕。 ¦ 运费标准是怎样的？ ¦ 运费为3,000韩元，单笔订单满50,000韩元即可享受包邮。 ¦ 商品规格概要 ¦ 商品名称 ¦ 济州汉拿峰果汁 200ml×12瓶 ¦ 净含量 ¦ 200ml ¦ 规格 ¦ 12瓶 ¦ 储存方式 ¦ 冷藏保存（开封后请尽快饮用）
+[194s]   [cta] 清爽唤醒每一个清晨 ¦ 不加水不加糖，济州汉拿峰100%鲜榨原汁 ¦ 查看商品详情
+[195s]   zh-CN JPG 860x12540 (1장)
+[195s] 키 노출 검사: 없음 (17개 파일)
