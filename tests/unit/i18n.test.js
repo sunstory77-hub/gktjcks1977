@@ -226,3 +226,14 @@ test('QA: 한글 번역 금지 용어가 번역문에 남으면 경고(상품명
   p.i18n.glossary = [{ ko: p.product.name, dnt: true, tr: {} }];
   assert.ok(!S.qaCheck(p, 'ja', b).some((w) => w.code === 'dnt-hangul'));
 });
+
+test('XLSX: 닫힌 빈 행(<row/>)이 있어도 다음 행 번호가 밀리지 않는다', () => {
+  const sheet = '<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>a</t></is></c></row><row r="2" ht="30" customHeight="1"/><row r="3"><c r="A3" t="inlineStr"><is><t>c</t></is></c></row></sheetData></worksheet>';
+  const zip = X.makeZip([
+    { name: 'xl/workbook.xml', data: Buffer.from('<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>') },
+    { name: 'xl/_rels/workbook.xml.rels', data: Buffer.from('<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>') },
+    { name: 'xl/worksheets/sheet1.xml', data: Buffer.from(sheet) },
+  ]);
+  const b = X.parseXlsx(zip);
+  assert.deepEqual(b.S, [['a'], [], ['c']]);
+});

@@ -182,10 +182,10 @@ function parseXlsx(buf) {
     const sx = zip.read(target);
     if (!sx) continue;
     const rows = [];
-    for (const rm of sx.toString('utf8').matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
+    for (const rm of sx.toString('utf8').matchAll(/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g)) {
       const rnum = parseInt(attrs(rm[1]).r, 10) || rows.length + 1;
       const row = [];
-      for (const cm of rm[2].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      for (const cm of (rm[2] || '').matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
         const ca = attrs(cm[1]);
         const ci = ca.r ? colIndex(ca.r.replace(/\d+/g, '')) : row.length;
         const inner = cm[2] || '';

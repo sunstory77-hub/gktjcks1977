@@ -200,9 +200,12 @@
     saving = true;
     setSaveState('saving');
     try {
-      const body = { baseRev: DPA.project.rev, project: { ...DPA.project, rev: undefined } };
-      const r = await api('PUT', `/api/projects/${DPA.project.id}`, body, { keepalive: !!(opts && opts.keepalive) });
-      DPA.project.rev = r.rev; DPA.project.updatedAt = r.updatedAt;
+      const proj = DPA.project;
+      const body = { baseRev: proj.rev, project: { ...proj, rev: undefined } };
+      // keepalive 요청은 브라우저가 본문 64KB 까지만 허용한다. 큰 프로젝트는 일반 요청으로 보낸다.
+      const keepalive = !!(opts && opts.keepalive) && JSON.stringify(body).length < 60000;
+      const r = await api('PUT', `/api/projects/${proj.id}`, body, { keepalive });
+      proj.rev = r.rev; proj.updatedAt = r.updatedAt; // 저장 중 다른 프로젝트로 바뀌어도 원래 프로젝트에만 반영
       setSaveState('saved');
     } catch (e) {
       if (e.status === 409) {

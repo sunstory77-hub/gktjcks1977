@@ -135,7 +135,8 @@ function createApp({ dir }) {
 
   async function serveStatic(req, res, pathname) {
     if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method', '허용되지 않는 요청입니다.');
-    let rel = decodeURIComponent(pathname);
+    let rel;
+    try { rel = decodeURIComponent(pathname); } catch { throw new HttpError(400, 'bad_path', '주소가 올바르지 않습니다.'); }
     if (rel === '/') rel = '/index.html';
     const file = path.resolve(PUBLIC_ROOT, '.' + rel);
     if (file !== PUBLIC_ROOT && !file.startsWith(PUBLIC_ROOT + path.sep)) throw new HttpError(404, 'not_found', '찾을 수 없습니다.');
@@ -261,7 +262,9 @@ function createApp({ dir }) {
       if (m === 'POST' && seg[3] === 'review' && seg[4] === 'import') {
         const buf = await readBody(req, 30 * 1024 * 1024);
         const proj = await store.readProject(pid);
-        const name = decodeURIComponent(String(req.headers['x-dpa-filename'] || 'review.xlsx')).slice(0, 200);
+        let name = String(req.headers['x-dpa-filename'] || 'review.xlsx');
+        try { name = decodeURIComponent(name); } catch { /* 인코딩이 깨진 이름은 그대로 쓴다 */ }
+        name = name.slice(0, 200);
         try { return send(res, 200, Review.parseReviewFile(proj, name, buf)); } catch (e) { throw new HttpError(400, 'bad_review_file', '검수 파일을 읽지 못했습니다: ' + e.message); }
       }
       if (m === 'GET' && seg[3] === 'backup') {
@@ -462,7 +465,11 @@ async function main(argv) {
 }
 
 if (require.main === module) {
-  main().catch((e) => { console.error('시작 실패:', e && e.message); process.exit(1); });
+  // 예상하지 못한 비동기 오류 하나로 프로그램 전체(키·작업 상태)가 꺼지지 않게 기록만 남긴다.
+  const crashLog = (kind, e) => { try { makeLogger(dataDir())('ERROR', `${kind} ${e && e.stack ? e.stack.split('\n').slice(0, 4).join(' | ') : e}`); } catch { /* 무시 */ } };
+  process.on('unhandledRejection', (e) => crashLog('unhandledRejection', e));
+  process.on('uncaughtException', (e) => { crashLog('uncaughtException', e); process.exit(1); });
+  main().catch((e) => { console.error('시작 실패:', e && e.message); crashLog('시작 실패', e); process.exit(1); });
 }
 
 module.exports = { main, createApp, probe, VERSION, APP_ROOT, errView };

@@ -226,3 +226,15 @@ test('UI 종료 요청(/api/quit)', async () => {
   await new Promise((res) => app.child.once('exit', res));
   assert.ok(!fs.existsSync(path.join(dataDir, 'instance.json')));
 });
+
+test('깨진 주소·파일명 인코딩은 500 이 아니라 400/정상 처리', async () => {
+  const app = await startApp({ dataDir: tmpDir('baduri') });
+  try {
+    const r = await fetch(`http://127.0.0.1:${app.port}/%E0%A4%A`);
+    assert.equal(r.status, 400);
+    const api = apiClient(app.port, await getToken(app.port));
+    const p = (await api.post('/api/projects', {})).json.project;
+    const imp = await api.call('POST', `/api/projects/${p.id}/review/import`, Buffer.from('x'), { 'content-type': 'application/octet-stream', 'x-dpa-filename': '%E0%A4%A' });
+    assert.equal(imp.status, 400, '읽을 수 없는 파일 안내(서버 오류 아님)');
+  } finally { await app.stop(); }
+});

@@ -6,6 +6,7 @@
   DPA.ZIP = window.DPA_ZIP;
 
   DPA.setProject = async function (p) {
+    if (DPA.project && DPA.project.id !== p.id) await DPA.flushSave(); // 이전 프로젝트의 미저장 수정 먼저 저장
     DPA.project = p;
     DPA.resetHistory();
     DPA.clearConflict();
