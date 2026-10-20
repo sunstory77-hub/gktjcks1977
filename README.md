@@ -2,7 +2,7 @@
 
 AI 상품 상세페이지 제작 프로그램 (Windows 설치형). 상품 사진과 정보를 입력하면 Google Gemini 가 설명을 정리하고 상세페이지 문구·연출 이미지를 만들며, 결과를 블록별로 편집한 뒤 **JPG / 이미지 ZIP / 프로젝트 JSON** 으로 저장합니다.
 
-> 설치 파일: `dist/DETAIL_PAGE_AI_Setup_v1.1.0.exe` · 사용법: [`docs/사용설명서.md`](docs/사용설명서.md) · 검증 결과와 한계: [`docs/검증결과.md`](docs/검증결과.md) · 배포: [`docs/배포안내.md`](docs/배포안내.md)
+> 설치 파일: `dist/DETAIL_PAGE_AI_Setup_v1.1.1.exe` · 사용법: [`docs/사용설명서.md`](docs/사용설명서.md) · 검증 결과와 한계: [`docs/검증결과.md`](docs/검증결과.md) · 배포: [`docs/배포안내.md`](docs/배포안내.md)
 
 ## 특징
 
@@ -33,7 +33,7 @@ docs/           사용설명서, 검증결과, 배포안내
 node src/server.js          # http://127.0.0.1:47831 (사용 중이면 다음 포트). --no-open 으로 브라우저 자동 열기 끔
 npm test                    # 단위 시험
 npm run test:e2e            # 브라우저 E2E (playwright + chromium 필요)
-npm run build:installer     # dist/DETAIL_PAGE_AI_Setup_v1.1.0.exe
+npm run build:installer     # dist/DETAIL_PAGE_AI_Setup_v1.1.1.exe
 ```
 
 환경 변수: `DPA_DATA_DIR`(자료 폴더), `DPA_PORT`(시작 포트), `DPA_IDLE_MS`(유휴 종료). `DPA_TEST=1` + `DPA_GEMINI_BASE` 는 **시험용 모의 서버 전용**이며 평소에는 Google 주소로 고정됩니다.

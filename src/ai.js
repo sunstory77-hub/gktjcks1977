@@ -171,6 +171,7 @@ Rules:
 - Translate naturally as marketing copy for shoppers in the target market; do not translate word by word. Keep the meaning, tone and level of claim of the source.
 - Never add claims, certifications, effects, awards, statistics or ingredients that are not in the Korean source. Never strengthen a claim.
 - Keep every number, unit, quantity, percentage and size exactly as in the source. Do not convert units or currency.
+- Keep the numeric value of quantities, but write the counter/packaging word the way native shoppers in the target market naturally do (e.g. Korean "12입" → "12 pack" / "12本" or "12個" / "12瓶" depending on the product type). Do not use another language's counter word (for example Japanese "入" in Chinese).
 - Keep brand names, product model names and proper nouns as in the source, following the glossary below.
 - Each segment key (path) must stay exactly the same; translate only the values. Keep line breaks (\n) where they exist. Return every segment; do not merge, split, add or drop segments.
 - Keep the length close to the source so the text fits the image layout (headings short and punchy).

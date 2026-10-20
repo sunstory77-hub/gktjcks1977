@@ -418,6 +418,10 @@
         if (g.dnt) { if (!tr.includes(g.ko)) warns.push({ code: 'dnt', path, msg: `번역 금지 용어 ‘${g.ko}’가 그대로 있어야 합니다` }); }
         else if (g.tr && g.tr[lang] && !tr.toLowerCase().includes(String(g.tr[lang]).toLowerCase())) warns.push({ code: 'glossary', path, msg: `용어집 불일치: ‘${g.ko}’ → ‘${g.tr[lang]}’ (으)로 번역해야 합니다` });
       }
+      // 한글 번역 금지 용어: 일본어·중국어·영어 문장에 한글이 섞인다(상품명은 제외)
+      for (const g of glossary) {
+        if (g.dnt && g.ko && g.ko !== productName && HANGUL.test(g.ko) && tr.includes(g.ko)) warns.push({ code: 'dnt-hangul', path, msg: `번역 금지 용어 ‘${g.ko}’의 한글이 번역문에 그대로 남았습니다. 용어집에서 번역어를 지정하세요` });
+      }
       // 현지 상품명
       if (market.name && productName && ko.includes(productName) && !tr.includes(market.name)) warns.push({ code: 'name', path, msg: `현지 상품명 ‘${market.name}’ 사용 필요` });
     }

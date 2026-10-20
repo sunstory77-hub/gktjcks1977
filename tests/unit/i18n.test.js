@@ -217,3 +217,12 @@ test('검수 패키지: pending 옵션이면 이미 검수 완료한 블록은 �
   const book = X.parseXlsx(R.buildPackage(p, ['en'], 'xlsx', { pending: true }).data);
   assert.equal(book.EN.length - 1, pend.length);
 });
+
+test('QA: 한글 번역 금지 용어가 번역문에 남으면 경고(상품명은 제외)', () => {
+  const p = makeProject({ langs: ['ja'], glossary: [{ ko: '제주', dnt: true, tr: {} }] });
+  const b = p.blocks.find((x) => x.type === 'hero');
+  p.i18n.data.ja.blocks.hero.t.subtitle = '제주ハルラボンを皮ごと搾った100%ジュースです。';
+  assert.ok(S.qaCheck(p, 'ja', b).some((w) => w.code === 'dnt-hangul' && w.path === 'subtitle'));
+  p.i18n.glossary = [{ ko: p.product.name, dnt: true, tr: {} }];
+  assert.ok(!S.qaCheck(p, 'ja', b).some((w) => w.code === 'dnt-hangul'));
+});

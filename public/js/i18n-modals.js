@@ -89,7 +89,7 @@
           ko.addEventListener('input', (ev) => DPA.mutate((pr) => { pr.i18n.glossary[i].ko = ev.target.value; }, `gl:${e.id}:ko`, 'i18n'));
           const dnt = h('input', { type: 'checkbox', checked: !!e.dnt, 'aria-label': '번역 금지(그대로 사용)', onchange: (ev) => { DPA.mutate((pr) => { pr.i18n.glossary[i].dnt = ev.target.checked; }, null, 'i18n'); draw(); } });
           const cells = langs.map((c) => {
-            const inp = h('input', { value: (e.tr && e.tr[c]) || '', disabled: !!e.dnt, placeholder: e.dnt ? '그대로 사용' : '번역어', 'aria-label': `${meta(c).name} 번역어`, class: 'lang-' + c });
+            const inp = h('input', { value: (e.tr && e.tr[c]) || '', disabled: !!e.dnt, placeholder: e.dnt ? (/[가-힣]/.test(e.ko || '') && e.ko !== p.product.name ? '그대로(한글이 남음!)' : '그대로 사용') : '번역어', 'aria-label': `${meta(c).name} 번역어`, class: 'lang-' + c });
             inp.addEventListener('input', (ev) => DPA.mutate((pr) => { const x = pr.i18n.glossary[i]; x.tr = x.tr || {}; x.tr[c] = ev.target.value; }, `gl:${e.id}:${c}`, 'i18n'));
             return inp;
           });
