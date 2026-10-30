@@ -1,0 +1,1 @@
+fetch('/fonts/Pretendard-LICENSE-OFL.txt').then((r) => r.text()).then((t) => { document.getElementById('ofl').textContent = t; }).catch(() => { document.getElementById('ofl').textContent = '설치 폴더의 public/fonts/Pretendard-LICENSE-OFL.txt 를 확인해 주세요.'; });
